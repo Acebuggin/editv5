@@ -20,17 +20,17 @@ end)
 
 RegisterCommand('e', function(source, args, raw) EmoteCommandStart(args) end, false)
 RegisterCommand('emote', function(source, args, raw) EmoteCommandStart(args) end, false)
-RegisterCommand('emotecancel', function() EmoteCancel() end, false)
+
+if Config.EnableCancelKeybind then
+    RegisterCommand('emotecancel', function() EmoteCancel() end, false)
+    RegisterKeyMapping("emotecancel", Translate('register_cancel_emote'), "keyboard", Config.CancelEmoteKey)
+end
 
 if Config.MenuKeybindEnabled then
     RegisterCommand('emoteui', function() OpenEmoteMenu() end, false)
     RegisterKeyMapping("emoteui", Translate('register_open_menu'), "keyboard", Config.MenuKeybind)
 else
     RegisterCommand('emotemenu', function() OpenEmoteMenu() end, false)
-end
-
-if Config.EnableCancelKeybind then
-    RegisterKeyMapping("emotecancel", Translate('register_cancel_emote'), "keyboard", Config.CancelEmoteKey)
 end
 
 -- BINDING EMOTES TO KEYS

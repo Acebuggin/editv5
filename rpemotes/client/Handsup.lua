@@ -1,5 +1,8 @@
 -- Ensure PlayerProps exists (it's defined in Emote.lua but we need it here)
 PlayerProps = PlayerProps or {}
+LastValidPropInfo = LastValidPropInfo or {}
+CurrentAnimOptions = CurrentAnimOptions or nil
+CurrentTextureVariation = CurrentTextureVariation or nil
 
 local function HandsUpLoop()
     CreateThread(function()
@@ -79,26 +82,56 @@ if Config.HandsupEnabled then
             HandsUpLoop()
             
             -- Recreate props after animation starts with multiple attempts
-            if needToRecreateProp and RecreateStoredProps then
+            if Config.KeepPropsWhenHandsUp then
                 CreateThread(function()
+                    Wait(100) -- Give animation time to start
+                    DebugPrint("Checking if props need recreation after hands up animation")
+                    
                     -- Force recreation even if props exist, as they might be detached
                     for i = 1, 3 do
                         Wait(50 * i) -- Wait 50ms, 100ms, 150ms
-                        DebugPrint("Attempt " .. i .. ": Force recreating props (current count: " .. (PlayerProps and #PlayerProps or 0) .. ")")
                         
-                        -- Destroy existing props first as they might be detached
+                        -- Check if props are attached to player
+                        local propsAttached = false
                         if PlayerProps and #PlayerProps > 0 then
-                            DebugPrint("Clearing existing detached props")
-                            DestroyAllProps()
-                            Wait(50)
+                            local firstProp = PlayerProps[1]
+                            if firstProp and DoesEntityExist(firstProp) then
+                                local attachedTo = GetEntityAttachedTo(firstProp)
+                                propsAttached = (attachedTo == PlayerPedId())
+                                DebugPrint("Attempt " .. i .. ": Prop exists, attached to: " .. tostring(attachedTo) .. ", player: " .. tostring(PlayerPedId()))
+                            end
                         end
                         
-                        -- Now recreate them
-                        RecreateStoredProps()
-                        Wait(50)
-                        
-                        if PlayerProps and #PlayerProps > 0 then
-                            DebugPrint("Props recreated on attempt " .. i .. " (new count: " .. #PlayerProps .. ")")
+                        if not propsAttached then
+                            DebugPrint("Props not attached to player, recreating...")
+                            
+                            -- Destroy existing props first as they might be detached
+                            if PlayerProps and #PlayerProps > 0 then
+                                DebugPrint("Clearing existing detached props")
+                                DestroyAllProps()
+                                Wait(50)
+                            end
+                            
+                            -- Now recreate them
+                            if RecreateStoredProps then
+                                RecreateStoredProps()
+                            elseif LastValidPropInfo and LastValidPropInfo.AnimOptions then
+                                DebugPrint("Using LastValidPropInfo for recreation")
+                                -- Manually recreate using last valid info
+                                CurrentAnimOptions = LastValidPropInfo.AnimOptions
+                                CurrentTextureVariation = LastValidPropInfo.TextureVariation
+                                if addProps then
+                                    addProps(LastValidPropInfo.AnimOptions, LastValidPropInfo.TextureVariation, false)
+                                end
+                            end
+                            Wait(50)
+                            
+                            if PlayerProps and #PlayerProps > 0 then
+                                DebugPrint("Props recreated on attempt " .. i .. " (new count: " .. #PlayerProps .. ")")
+                                break
+                            end
+                        else
+                            DebugPrint("Props are properly attached, no recreation needed")
                             break
                         end
                     end
