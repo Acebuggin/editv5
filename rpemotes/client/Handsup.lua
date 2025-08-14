@@ -76,8 +76,11 @@ if Config.HandsupEnabled then
             -- Recreate props after animation starts
             if needToRecreateProp and RecreateStoredProps then
                 CreateThread(function()
-                    Wait(200)
-                    RecreateStoredProps()
+                    Wait(50) -- Shorter wait time
+                    if #PlayerProps == 0 then
+                        DebugPrint("Props were destroyed by hands up animation, recreating")
+                        RecreateStoredProps()
+                    end
                 end)
             end
         else
@@ -92,12 +95,10 @@ if Config.HandsupEnabled then
                 Wait(400)
                 if not Config.KeepPropsWhenHandsUp then
                     DestroyAllProps()
-                    OnEmotePlay(CurrentAnimationName, CurrentTextureVariation)
                 else
                     DebugPrint("Hands down - keeping props due to KeepPropsWhenHandsUp config")
-                    -- Don't replay the emote, just restore the animation state
-                    IsInAnimation = true
                 end
+                OnEmotePlay(CurrentAnimationName, CurrentTextureVariation)
             end
         end
     end

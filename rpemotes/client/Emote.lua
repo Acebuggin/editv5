@@ -22,6 +22,7 @@ local currentEmote = {}
 local attachedProp
 local StoredPropsInfo = {} -- Store prop info for recreation
 local LastValidPropInfo = {} -- Backup storage that persists
+local WasInHandsup = false -- Track hands up state changes
 local scenarioObjects = {
     `p_amb_coffeecup_01`,
     `p_amb_joint_01`,
@@ -102,6 +103,20 @@ CreateThread(function()
                     DebugPrint("Monitor: Props disappeared (had " .. lastPropCount .. "), attempting to recreate")
                     RecreateStoredProps()
                 end
+            end
+            
+            -- Special handling for hands up state changes
+            if Config.KeepPropsWhenHandsUp then
+                -- Detect when entering hands up
+                if InHandsup and not WasInHandsup then
+                    DebugPrint("Monitor: Entered hands up state")
+                    if currentPropCount == 0 and LastValidPropInfo.AnimOptions then
+                        DebugPrint("Monitor: Props missing after hands up, recreating")
+                        Wait(100)
+                        RecreateStoredProps()
+                    end
+                end
+                WasInHandsup = InHandsup
             end
             
             -- Store props info when we have props and might need them
