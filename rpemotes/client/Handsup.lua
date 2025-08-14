@@ -203,4 +203,9 @@ if Config.HandsupEnabled then
     exports('isHandsup', function()
         return InHandsup
     end)
+    
+    -- QB-Smallresources compatibility export (for qb-radialmenu)
+    exports('getHandsup', function()
+        return InHandsup
+    end)
 end
