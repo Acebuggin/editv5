@@ -412,6 +412,33 @@ CreateThread(function()
 		debugPoly = false
 	})
 	
+	-- Create return zone blip when oxy run is active
+	local returnBlip = nil
+	CreateThread(function()
+		while true do
+			Wait(1000)
+			if started and oxyVehicle and DoesEntityExist(oxyVehicle) then
+				if not returnBlip then
+					returnBlip = AddBlipForCoord(Config.VehicleSpawnLocation.x, Config.VehicleSpawnLocation.y, Config.VehicleSpawnLocation.z)
+					SetBlipSprite(returnBlip, 50) -- Garage icon
+					SetBlipScale(returnBlip, 0.8)
+					SetBlipColour(returnBlip, 3) -- Blue
+					SetBlipAsShortRange(returnBlip, false)
+					BeginTextCommandSetBlipName("STRING")
+					AddTextComponentString("Return Vehicle")
+					EndTextCommandSetBlipName(returnBlip)
+					debugPrint("Created return zone blip")
+				end
+			else
+				if returnBlip then
+					RemoveBlip(returnBlip)
+					returnBlip = nil
+					debugPrint("Removed return zone blip")
+				end
+			end
+		end
+	end)
+	
 	-- Draw marker thread
 	CreateThread(function()
 		while true do
@@ -477,8 +504,20 @@ CreateThread(function()
 					})
 					
 					CreateThread(function()
-						while isPointInside and started do
+						while inReturnZone and started do
 							Wait(0)
+							-- Double check we're actually in the return zone
+							local playerCoords = GetEntityCoords(PlayerPedId())
+							local returnCoords = Config.VehicleSpawnLocation
+							local distanceToReturn = #(playerCoords - vector3(returnCoords.x, returnCoords.y, returnCoords.z))
+							
+							if distanceToReturn > 5.0 then
+								-- Player moved too far from return zone
+								exports.ox_lib:hideTextUI()
+								debugPrint("Player left return zone - hiding UI")
+								break
+							end
+							
 							-- Must still be in vehicle
 							local currentVeh = GetVehiclePedIsIn(PlayerPedId(), false)
 							if currentVeh ~= oxyVehicle then
@@ -497,6 +536,16 @@ CreateThread(function()
 							end
 							
 							if IsControlJustPressed(0, 38) then -- E
+								-- Triple check distance to return zone before allowing return
+								local finalPlayerCoords = GetEntityCoords(PlayerPedId())
+								local finalDistToReturn = #(finalPlayerCoords - vector3(returnCoords.x, returnCoords.y, returnCoords.z))
+								
+								if finalDistToReturn > 5.0 then
+									debugPrint("E pressed but too far from return zone - ignoring")
+									QBCore.Functions.Notify("You must be at the return location to return the vehicle", "error")
+									break
+								end
+								
 								-- Final check before ending run
 								if oxyPed and DoesEntityExist(oxyPed) then
 									local finalDist = #(GetEntityCoords(PlayerPedId()) - GetEntityCoords(oxyPed))
