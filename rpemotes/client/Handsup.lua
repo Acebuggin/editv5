@@ -65,6 +65,8 @@ if Config.HandsupEnabled then
             end
             
             LocalPlayer.state:set('currentEmote', 'handsup', true)
+            -- QB-Core compatibility - set handsup state
+            LocalPlayer.state:set('handsup', true, true)
             
             if not Config.KeepPropsWhenHandsUp then
                 DestroyAllProps()
@@ -140,6 +142,8 @@ if Config.HandsupEnabled then
         else
             DebugPrint("=== HANDS DOWN SEQUENCE START ===")
             LocalPlayer.state:set('currentEmote', nil, true)
+            -- QB-Core compatibility - clear handsup state
+            LocalPlayer.state:set('handsup', false, true)
             ClearPedSecondaryTask(PlayerPedId())
             if Config.ReplayEmoteAfterHandsup and IsInAnimation then
                 local emote = EmoteData[CurrentAnimationName]
@@ -187,6 +191,16 @@ if Config.HandsupEnabled then
     end
 
     CreateExport('IsPlayerInHandsUp', function()
+        return InHandsup
+    end)
+    
+    -- QB-Core compatibility exports
+    exports('handsup', function()
+        return InHandsup
+    end)
+    
+    -- Alternative export name that some scripts might use
+    exports('isHandsup', function()
         return InHandsup
     end)
 end
