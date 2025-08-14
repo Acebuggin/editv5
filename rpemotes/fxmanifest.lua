@@ -31,6 +31,7 @@ shared_scripts {
 server_scripts {
     'server/Server.lua',
     'server/Updates.lua',
+    'server/rob_compatibility.lua',
 }
 
 client_scripts {
@@ -53,6 +54,8 @@ client_scripts {
     'client/Ragdoll.lua',
     'client/Syncing.lua',
     'client/Walk.lua',
+    'client/test_handsup.lua',
+    'client/rob_compatibility.lua',
 }
 
 
