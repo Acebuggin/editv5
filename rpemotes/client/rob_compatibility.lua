@@ -19,23 +19,38 @@ RegisterNetEvent('police:client:RobPlayer', function()
         if targetHandsUp then
             -- Start robbing animation
             local ped = PlayerPedId()
-            QBCore.Functions.Progressbar("robbing", "Robbing...", 5000, false, true, {
-                disableMovement = true,
-                disableCarMovement = true,
-                disableMouse = false,
-                disableCombat = true,
-            }, {
-                animDict = "random@shop_robbery",
-                anim = "robbery_action_b",
-                flags = 16,
-            }, {}, {}, function() -- Done
-                -- Notify server to handle the rob
+            
+            -- Request animation dictionary
+            RequestAnimDict("random@shop_robbery")
+            while not HasAnimDictLoaded("random@shop_robbery") do
+                Wait(10)
+            end
+            
+            -- Use ox_lib progress circle
+            if lib.progressCircle({
+                duration = 5000,
+                position = 'bottom',
+                useWhileDead = false,
+                canCancel = true,
+                disable = {
+                    car = true,
+                    move = true,
+                    combat = true
+                },
+                anim = {
+                    dict = 'random@shop_robbery',
+                    clip = 'robbery_action_b'
+                },
+                label = 'Robbing...',
+            }) then
+                -- Success - notify server to handle the rob
                 TriggerServerEvent('police:server:RobPlayer', playerId)
                 ClearPedTasks(ped)
-            end, function() -- Cancel
+            else
+                -- Cancelled
                 QBCore.Functions.Notify("Robbery cancelled", "error")
                 ClearPedTasks(ped)
-            end)
+            end
         else
             QBCore.Functions.Notify("This person doesn't have their hands up!", "error")
         end
