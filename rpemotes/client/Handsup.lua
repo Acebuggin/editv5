@@ -102,21 +102,44 @@ if Config.HandsupEnabled then
                 end)
             end
         else
+            DebugPrint("=== HANDS DOWN SEQUENCE START ===")
             LocalPlayer.state:set('currentEmote', nil, true)
             ClearPedSecondaryTask(PlayerPedId())
             if Config.ReplayEmoteAfterHandsup and IsInAnimation then
                 local emote = EmoteData[CurrentAnimationName]
                 if not emote then
+                    DebugPrint("No emote data found for: " .. tostring(CurrentAnimationName))
                     return
                 end
 
+                DebugPrint("Will replay emote: " .. CurrentAnimationName)
+                DebugPrint("Current prop count before replay: " .. #PlayerProps)
+                
                 Wait(400)
                 if not Config.KeepPropsWhenHandsUp then
                     DestroyAllProps()
                 else
                     DebugPrint("Hands down - keeping props due to KeepPropsWhenHandsUp config")
                 end
+                
+                -- Set flag to preserve props during replay
+                if Config.KeepPropsWhenHandsUp and PreservingHandsUpProps ~= nil then
+                    PreservingHandsUpProps = true
+                    DebugPrint("Setting PreservingHandsUpProps = true for replay")
+                end
+                
                 OnEmotePlay(CurrentAnimationName, CurrentTextureVariation)
+                
+                -- Clear flag after a delay
+                if PreservingHandsUpProps ~= nil then
+                    CreateThread(function()
+                        Wait(1000)
+                        PreservingHandsUpProps = false
+                        DebugPrint("Cleared PreservingHandsUpProps flag")
+                    end)
+                end
+                
+                DebugPrint("=== HANDS DOWN SEQUENCE END ===")
             end
         end
     end
