@@ -847,6 +847,33 @@ RegisterCommand('drugsdebug', function()
 end, false)
 --]]
 
+-- Debug command to check drug inventory (helpful for troubleshooting)
+RegisterCommand('checkdrugs', function()
+    local success, items = SafeExecute(function()
+        return exports.ox_inventory:Items()
+    end)
+    
+    if success and items then
+        print("^2=== Drug Inventory Check ===^7")
+        local foundDrugs = false
+        for drugName, drugConfig in pairs(Config.Drugs) do
+            local item = items[drugName]
+            if item and item.count > 0 then
+                print("^2✓^7 " .. drugName .. ": " .. item.count)
+                foundDrugs = true
+            else
+                print("^1✗^7 " .. drugName .. ": 0")
+            end
+        end
+        print("^3hasDrugs status:^7 " .. tostring(hasDrugs))
+        if not foundDrugs then
+            QBCore.Functions.Notify("You don't have any drugs to sell!", "error")
+        end
+    else
+        print("^1[ERROR] Failed to check inventory^7")
+    end
+end, false)
+
 -- Statistics command (for all players - shows their own stats)
 --[[ Commented out by request
 RegisterCommand('drugstats', function()
