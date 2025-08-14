@@ -1,4 +1,5 @@
 -- You probably shouldn't touch these.
+print("[rpemotes] Starting to load Emote.lua")
 IsInAnimation = false
 CurrentAnimationName = nil
 CurrentTextureVariation = nil
@@ -12,7 +13,7 @@ local ChosenScenarioType
 CurrentAnimOptions = nil  -- Made global for access from other files
 local PlayerGender = "male"
 PlayerProps = {}  -- Made global for access from other files
--- PreviewPedProps is now defined in Utils.lua
+PreviewPedProps = PreviewPedProps or {} -- Ensure it exists (defined in Utils.lua but we need it here too)
 local PtfxNotif = false
 local PtfxPrompt = false
 local AnimationThreadStatus = false
@@ -83,11 +84,14 @@ end)
 
 -- Prop preservation monitoring thread
 CreateThread(function()
+    print("[rpemotes] Starting prop preservation monitoring thread")
     Wait(1000) -- Wait for everything to initialize
     if not Config or not Config.KeepPropsWhenAiming then 
+        print("[rpemotes] Prop preservation disabled or config not loaded, exiting thread")
         return -- Exit thread if config not loaded or feature disabled
     end
     
+    print("[rpemotes] Prop preservation monitoring active")
     local lastPropCount = 0
     local wasAiming = false
     local storedAnimOptions = nil
@@ -916,6 +920,5 @@ if Config and Config.EnableDebugPrints then
     print("[rpemotes] Emote.lua loaded successfully - EmoteMenuStart exists: " .. tostring(EmoteMenuStart ~= nil))
 end
 
--- Create exports for menu functions
-exports('EmoteMenuStart', EmoteMenuStart)
-exports('EmoteMenuStartClone', EmoteMenuStartClone)
+-- Print always to debug loading issue
+print("[rpemotes] Emote.lua file reached end")
