@@ -1,22 +1,16 @@
--- Protected loading to catch errors
-local success, err = pcall(function()
-
 -- You probably shouldn't touch these.
-print("[rpemotes] Starting to load Emote.lua")
 IsInAnimation = false
 CurrentAnimationName = nil
 CurrentTextureVariation = nil
 InHandsup = false
 CONVERTED = false
-KeepPropsOnCancel = false  -- New flag to track when props should be preserved
-StoredPropInfo = {}  -- Store prop information for recreation
 
 ---@type ScenarioType
 local ChosenScenarioType
-CurrentAnimOptions = nil  -- Made global for access from other files
+local CurrentAnimOptions
 local PlayerGender = "male"
-PlayerProps = {}  -- Made global for access from other files
-PreviewPedProps = PreviewPedProps or {} -- Ensure it exists (defined in Utils.lua but we need it here too)
+local PlayerProps = {}
+local PreviewPedProps = {}
 local PtfxNotif = false
 local PtfxPrompt = false
 local AnimationThreadStatus = false
@@ -72,71 +66,15 @@ if not Config.AnimalEmotesEnabled then
     RP.AnimalEmotes = {}
 end
 
--- Debug config values
-CreateThread(function()
-    Wait(1000) -- Wait for config to load
-    DebugPrint("Config loaded - KeepPropsWhenAiming: " .. tostring(Config.KeepPropsWhenAiming))
-    DebugPrint("Config loaded - KeepPropsWhenHandsUp: " .. tostring(Config.KeepPropsWhenHandsUp))
-    DebugPrint("Config loaded - EnableDebugPrints: " .. tostring(Config.EnableDebugPrints))
-end)
-
 CreateThread(function()
     LocalPlayer.state:set('canEmote', true, true)
     LocalPlayer.state:set('canCancel', true, true)
-end)
-
--- Prop preservation monitoring thread
-CreateThread(function()
-    print("[rpemotes] Starting prop preservation monitoring thread")
-    Wait(1000) -- Wait for everything to initialize
-    if not Config or not Config.KeepPropsWhenAiming then 
-        print("[rpemotes] Prop preservation disabled or config not loaded, exiting thread")
-        return -- Exit thread if config not loaded or feature disabled
-    end
-    
-    print("[rpemotes] Prop preservation monitoring active")
-    local lastPropCount = 0
-    local wasAiming = false
-    local storedAnimOptions = nil
-    local storedTextureVariation = nil
-    
-    while true do
-        Wait(50) -- Check every 50ms
-        
-        local isAiming = IsPlayerAiming(PlayerId())
-        local currentPropCount = #PlayerProps
-        
-        -- Store prop info when we start aiming with props
-        if isAiming and not wasAiming and currentPropCount > 0 and Config.KeepPropsWhenAiming then
-            storedAnimOptions = CurrentAnimOptions
-            storedTextureVariation = CurrentTextureVariation
-            DebugPrint("Started aiming with " .. currentPropCount .. " props - storing info")
-        end
-        
-        -- Detect if props were destroyed while aiming
-        if isAiming and Config.KeepPropsWhenAiming and lastPropCount > 0 and currentPropCount == 0 and storedAnimOptions and storedAnimOptions.Prop then
-            DebugPrint("Props destroyed while aiming - recreating them")
-            CurrentAnimOptions = storedAnimOptions
-            CurrentTextureVariation = storedTextureVariation
-            RecreateProps()
-        end
-        
-        -- Clear stored info when we stop aiming
-        if not isAiming and wasAiming then
-            storedAnimOptions = nil
-            storedTextureVariation = nil
-        end
-        
-        lastPropCount = currentPropCount
-        wasAiming = isAiming
-    end
 end)
 
 local function runAnimationThread()
     local pPed = PlayerPedId()
     if AnimationThreadStatus then return end
     AnimationThreadStatus = true
-    DebugPrint("Starting animation thread")
     CreateThread(function()
         local sleep
         while AnimationThreadStatus and (IsInAnimation or PtfxPrompt) do
@@ -144,8 +82,16 @@ local function runAnimationThread()
 
             if IsInAnimation then
                 sleep = 0
-                if IsPlayerAiming(PlayerId()) then
-                    EmoteCancel()
+                if IsPlayerAiming(pPed) then
+                    -- Check if we should keep props when aiming
+                    if Config.KeepPropsWhenAiming and #PlayerProps > 0 then
+                        DebugPrint("Player aiming with KeepPropsWhenAiming enabled - skipping EmoteCancel")
+                        -- Just clear the animation but keep props
+                        ClearPedTasks(pPed)
+                        IsInAnimation = false
+                    else
+                        EmoteCancel()
+                    end
                 end
                 if not Config.AllowPunchingDuringEmote then
                     DisableControlAction(2, 140, true)
@@ -190,16 +136,11 @@ local function checkStatusThread(dict, anim)
         while CheckStatus and IsInAnimation do
             if not IsEntityPlayingAnim(PlayerPedId(), dict, anim, 3) then
                 DebugPrint("Animation ended")
-                if not KeepPropsOnCancel then
-                    DestroyAllProps()
-                else
-                    DebugPrint("Keeping props due to KeepPropsOnCancel flag")
-                    KeepPropsOnCancel = false  -- Reset the flag
-                end
-                IsInAnimation = false
+                DestroyAllProps()
+                EmoteCancel()
                 break
             end
-            Wait(5)
+            Wait(0)
         end
     end)
 end
@@ -230,20 +171,6 @@ local function exitScenario()
 end
 
 function EmoteCancel(force)
-    DebugPrint("EmoteCancel called with force=" .. tostring(force))
-    
-    -- Check if we're aiming and should keep props
-    if Config.KeepPropsWhenAiming and IsPlayerAiming(PlayerId()) and not force then
-        DebugPrint("EmoteCancel blocked - player is aiming and KeepPropsWhenAiming is true")
-        -- Still clear the animation but don't destroy props
-        local ped = PlayerPedId()
-        ClearPedTasks(ped)
-        IsInAnimation = false
-        AnimationThreadStatus = false
-        LocalPlayer.state:set('currentEmote', nil, true)
-        return
-    end
-    
     if not LocalPlayer.state.canCancel and not force then return end
 
     LocalPlayer.state:set('currentEmote', nil, true)
@@ -405,7 +332,6 @@ local function addProp(data)
         PreviewPedProps[#PreviewPedProps+1] = attachedProp
     else
         PlayerProps[#PlayerProps+1] = attachedProp
-        DebugPrint("Created prop: " .. data.prop1 .. " (Total props: " .. #PlayerProps .. ")")
     end
 
     SetModelAsNoLongerNeeded(data.prop1)
@@ -597,11 +523,20 @@ function EmoteCommandStart(args)
     OnEmotePlay(name)
 end
 
-function RecreateProps()
-    if CurrentAnimOptions and CurrentAnimOptions.Prop then
-        DebugPrint("Recreating props from stored animation options")
-        addProps(CurrentAnimOptions, CurrentTextureVariation, false)
+---@param isClone? boolean
+function DestroyAllProps(isClone)
+    if isClone then
+        for _, v in pairs(PreviewPedProps) do
+            DeleteEntity(v)
+        end
+        PreviewPedProps = {}
+    else
+        for _, v in pairs(PlayerProps) do
+            DeleteEntity(v)
+        end
+        PlayerProps = {}
     end
+    DebugPrint("Destroyed Props for " .. (isClone and "clone" or "player"))
 end
 
 local function playExitAndEnterEmote(name, textureVariation)
@@ -848,7 +783,7 @@ end)
 local openingDoor = false
 AddEventHandler('CEventOpenDoor', function(unk1)
     if unk1[1] ~= PlayerPedId() then return end
-    if ShowPed Then
+    if ShowPed then
         return
     end
 
@@ -917,11 +852,3 @@ AddEventHandler('onResourceStop', function(resource)
     DetachEntity(ped, true, false)
     ResetPedMovementClipset(ped, 0.8)
 end)
-
--- Debug: Confirm file loaded completely
-if Config and Config.EnableDebugPrints then
-    print("[rpemotes] Emote.lua loaded successfully - EmoteMenuStart exists: " .. tostring(EmoteMenuStart ~= nil))
-end
-
--- Print always to debug loading issue
-print("[rpemotes] Emote.lua file reached end")
