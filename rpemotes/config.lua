@@ -3,7 +3,7 @@
 Config = {
     MenuLanguage = 'en', -- Change the language of the menu here
 
-    EnableCancelKeybind = true,
+    EnableCancelKeybind = false,
     CancelEmoteKey = 'X',
 
     MenuKeybindEnabled = true,
