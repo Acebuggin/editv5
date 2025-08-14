@@ -356,7 +356,9 @@ end)
 
 -- Admin command to view server statistics
 RegisterCommand('serverdrugstats', function(source, args)
-    if source == 0 or IsPlayerAceAllowed(source, "drugstats") then
+    -- Check if player is admin using QBCore instead of ace permissions
+    if source == 0 then
+        -- Console can always use it
         local stats = string.format(
             "Server Stats - Total Sales: %d | Revenue: $%d | Failed: %d | Police Alerts: %d",
             serverStats.totalSales,
