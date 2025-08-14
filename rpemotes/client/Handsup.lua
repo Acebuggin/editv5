@@ -48,15 +48,17 @@ if Config.HandsupEnabled then
 
         InHandsup = not InHandsup
         if InHandsup then
-            LocalPlayer.state:set('currentEmote', 'handsup', true)
-            
-            -- Store props info if we need to keep them
+            -- Store props info FIRST before anything else
             local needToRecreateProp = false
-            if Config.KeepPropsWhenHandsUp and StorePropsInfo then
-                StorePropsInfo()
-                needToRecreateProp = true
-                DebugPrint("Storing props info before hands up")
+            if Config.KeepPropsWhenHandsUp and #PlayerProps > 0 then
+                if StorePropsInfo then
+                    StorePropsInfo()
+                    needToRecreateProp = true
+                    DebugPrint("Storing props info before hands up - PlayerProps count: " .. #PlayerProps)
+                end
             end
+            
+            LocalPlayer.state:set('currentEmote', 'handsup', true)
             
             if not Config.KeepPropsWhenHandsUp then
                 DestroyAllProps()
@@ -73,13 +75,24 @@ if Config.HandsupEnabled then
                 IsThisModelABike(GetEntityModel(GetVehiclePedIsIn(PlayerPedId(), false))) and 4127 or false, false)
             HandsUpLoop()
             
-            -- Recreate props after animation starts
+            -- Recreate props after animation starts with multiple attempts
             if needToRecreateProp and RecreateStoredProps then
                 CreateThread(function()
-                    Wait(50) -- Shorter wait time
-                    if #PlayerProps == 0 then
-                        DebugPrint("Props were destroyed by hands up animation, recreating")
-                        RecreateStoredProps()
+                    -- Try multiple times to ensure props are recreated
+                    for i = 1, 3 do
+                        Wait(50 * i) -- Wait 50ms, 100ms, 150ms
+                        if #PlayerProps == 0 then
+                            DebugPrint("Attempt " .. i .. ": Props were destroyed by hands up animation, recreating")
+                            RecreateStoredProps()
+                            Wait(50)
+                            if #PlayerProps > 0 then
+                                DebugPrint("Props successfully recreated on attempt " .. i)
+                                break
+                            end
+                        else
+                            DebugPrint("Props still exist, no need to recreate")
+                            break
+                        end
                     end
                 end)
             end

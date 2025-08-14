@@ -79,7 +79,8 @@ CreateThread(function()
     Wait(2000) -- Wait for script initialization
     DebugPrint("Prop monitoring thread started")
     local lastPropCount = 0
-    local checkInterval = 100
+    local checkInterval = 50  -- Reduced from 100 to 50ms
+    local handsUpRecreateAttempts = 0
     
     while true do
         Wait(checkInterval)
@@ -88,6 +89,18 @@ CreateThread(function()
             local currentPropCount = #PlayerProps
             local ped = PlayerPedId()
             local isAiming = IsPlayerAiming(PlayerId())
+            
+            -- More aggressive recreation during hands up
+            if Config.KeepPropsWhenHandsUp and InHandsup and currentPropCount == 0 and handsUpRecreateAttempts < 5 then
+                if LastValidPropInfo.AnimOptions or StoredPropsInfo.AnimOptions then
+                    handsUpRecreateAttempts = handsUpRecreateAttempts + 1
+                    DebugPrint("Monitor: Aggressive hands up prop recreation attempt " .. handsUpRecreateAttempts)
+                    RecreateStoredProps()
+                    Wait(50)
+                end
+            elseif not InHandsup then
+                handsUpRecreateAttempts = 0
+            end
             
             -- Debug every second
             if GetGameTimer() % 1000 < checkInterval then
