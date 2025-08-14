@@ -4,12 +4,14 @@ CurrentAnimationName = nil
 CurrentTextureVariation = nil
 InHandsup = false
 CONVERTED = false
+KeepPropsOnCancel = false  -- New flag to track when props should be preserved
+StoredPropInfo = {}  -- Store prop information for recreation
 
 ---@type ScenarioType
 local ChosenScenarioType
-local CurrentAnimOptions
+CurrentAnimOptions = nil  -- Made global for access from other files
 local PlayerGender = "male"
-local PlayerProps = {}
+PlayerProps = {}  -- Made global for access from other files
 local PreviewPedProps = {}
 local PtfxNotif = false
 local PtfxPrompt = false
@@ -85,11 +87,29 @@ local function runAnimationThread()
                 if IsPlayerAiming(pPed) then
                     if Config.KeepPropsWhenAiming then
                         DebugPrint("Player aiming - canceling animation but keeping props")
+                        -- Store current state
+                        local storedAnimOptions = CurrentAnimOptions
+                        local storedTextureVariation = CurrentTextureVariation
+                        
                         -- Cancel animation without destroying props
+                        KeepPropsOnCancel = true  -- Set flag to preserve props
                         ClearPedTasks(pPed)
                         IsInAnimation = false
                         AnimationThreadStatus = false
                         LocalPlayer.state:set('currentEmote', nil, true)
+                        
+                        -- Recreate props after a short delay
+                        if storedAnimOptions and storedAnimOptions.Prop then
+                            CreateThread(function()
+                                Wait(100)  -- Small delay to ensure props are not destroyed
+                                if #PlayerProps == 0 then  -- Props were destroyed, recreate them
+                                    DebugPrint("Props were destroyed, recreating them")
+                                    CurrentAnimOptions = storedAnimOptions
+                                    CurrentTextureVariation = storedTextureVariation
+                                    RecreateProps()
+                                end
+                            end)
+                        end
                     else
                         EmoteCancel()
                     end
@@ -137,11 +157,16 @@ local function checkStatusThread(dict, anim)
         while CheckStatus and IsInAnimation do
             if not IsEntityPlayingAnim(PlayerPedId(), dict, anim, 3) then
                 DebugPrint("Animation ended")
-                DestroyAllProps()
-                EmoteCancel()
+                if not KeepPropsOnCancel then
+                    DestroyAllProps()
+                else
+                    DebugPrint("Keeping props due to KeepPropsOnCancel flag")
+                    KeepPropsOnCancel = false  -- Reset the flag
+                end
+                IsInAnimation = false
                 break
             end
-            Wait(0)
+            Wait(5)
         end
     end)
 end
@@ -172,6 +197,7 @@ local function exitScenario()
 end
 
 function EmoteCancel(force)
+    DebugPrint("EmoteCancel called with force=" .. tostring(force))
     if not LocalPlayer.state.canCancel and not force then return end
 
     LocalPlayer.state:set('currentEmote', nil, true)
@@ -540,6 +566,13 @@ function DestroyAllProps(isClone)
         PlayerProps = {}
     end
     DebugPrint("Destroyed Props for " .. (isClone and "clone" or "player"))
+end
+
+function RecreateProps()
+    if CurrentAnimOptions and CurrentAnimOptions.Prop then
+        DebugPrint("Recreating props from stored animation options")
+        addProps(CurrentAnimOptions, CurrentTextureVariation, false)
+    end
 end
 
 local function playExitAndEnterEmote(name, textureVariation)
