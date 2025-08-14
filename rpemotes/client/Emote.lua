@@ -20,6 +20,10 @@ local ExitAndPlay = false
 local EmoteCancelPlaying = false
 local currentEmote = {}
 local attachedProp
+local StoredPropsInfo = {} -- Store prop info for recreation
+local LastValidPropInfo = {} -- Backup storage that persists
+local WasInHandsup = false -- Track hands up state changes
+PreservingHandsUpProps = false -- Flag to indicate we should preserve props during hands up (global for Handsup.lua)
 local scenarioObjects = {
     `p_amb_coffeecup_01`,
     `p_amb_joint_01`,
@@ -71,6 +75,86 @@ CreateThread(function()
     LocalPlayer.state:set('canCancel', true, true)
 end)
 
+-- Prop monitoring thread for preservation
+CreateThread(function()
+    Wait(2000) -- Wait for script initialization
+    DebugPrint("Prop monitoring thread started")
+    local lastPropCount = 0
+    local checkInterval = 50  -- Check every 50ms
+    local handsUpPropRecreated = false
+    
+    while true do
+        Wait(checkInterval)
+        
+        if Config.KeepPropsWhenAiming or Config.KeepPropsWhenHandsUp then
+            local currentPropCount = #PlayerProps
+            local ped = PlayerPedId()
+            local isAiming = IsPlayerAiming(PlayerId())
+            
+            -- More aggressive prop recreation during hands up
+            if Config.KeepPropsWhenHandsUp and InHandsup then
+                if currentPropCount == 0 and LastValidPropInfo.AnimOptions and not handsUpPropRecreated then
+                    DebugPrint("Monitor: Props missing during hands up, recreating immediately")
+                    RecreateStoredProps()
+                    handsUpPropRecreated = true
+                    Wait(100) -- Give it time to recreate
+                    currentPropCount = #PlayerProps
+                end
+            else
+                handsUpPropRecreated = false
+            end
+            
+            -- Debug every second
+            if GetGameTimer() % 1000 < checkInterval then
+                if isAiming or InHandsup then
+                    DebugPrint("Monitor: Aiming=" .. tostring(isAiming) .. ", Handsup=" .. tostring(InHandsup) .. ", Props=" .. currentPropCount)
+                end
+            end
+            
+            -- Check if props disappeared while we should keep them
+            if lastPropCount > 0 and currentPropCount == 0 then
+                if (Config.KeepPropsWhenAiming and isAiming) or 
+                   (Config.KeepPropsWhenHandsUp and InHandsup) then
+                    DebugPrint("Monitor: Props disappeared (had " .. lastPropCount .. "), attempting to recreate")
+                    RecreateStoredProps()
+                end
+            end
+            
+            -- Special handling for hands up state changes
+            if Config.KeepPropsWhenHandsUp then
+                -- Detect when entering hands up
+                if InHandsup and not WasInHandsup then
+                    DebugPrint("Monitor: Entered hands up state")
+                    if currentPropCount == 0 and LastValidPropInfo.AnimOptions then
+                        DebugPrint("Monitor: Props missing after hands up, recreating")
+                        Wait(100)
+                        RecreateStoredProps()
+                    end
+                end
+                WasInHandsup = InHandsup
+            end
+            
+            -- Store props info when we have props and might need them
+            if currentPropCount > 0 and (isAiming or InHandsup) then
+                if StoredPropsInfo.AnimOptions == nil then
+                    StorePropsInfo()
+                end
+            end
+            
+            -- Always update last valid prop info when we have props
+            if currentPropCount > 0 and CurrentAnimOptions and CurrentAnimOptions.Prop then
+                LastValidPropInfo = {
+                    AnimOptions = CurrentAnimOptions,
+                    TextureVariation = CurrentTextureVariation,
+                    AnimationName = CurrentAnimationName
+                }
+            end
+            
+            lastPropCount = currentPropCount
+        end
+    end
+end)
+
 local function runAnimationThread()
     local pPed = PlayerPedId()
     if AnimationThreadStatus then return end
@@ -83,7 +167,29 @@ local function runAnimationThread()
             if IsInAnimation then
                 sleep = 0
                 if IsPlayerAiming(pPed) then
-                    EmoteCancel()
+                    -- Check if we should keep props when aiming
+                    if Config.KeepPropsWhenAiming and #PlayerProps > 0 then
+                        DebugPrint("Player aiming with KeepPropsWhenAiming enabled - storing and recreating props")
+                        -- Store prop info before clearing tasks
+                        StorePropsInfo()
+                        -- Store current prop count
+                        local propsBeforeClear = #PlayerProps
+                        -- Clear the animation
+                        ClearPedTasks(pPed)
+                        IsInAnimation = false
+                        -- Check if props were actually destroyed
+                        CreateThread(function()
+                            Wait(100)
+                            if #PlayerProps < propsBeforeClear then
+                                DebugPrint("Props were destroyed (" .. propsBeforeClear .. " -> " .. #PlayerProps .. "), recreating")
+                                RecreateStoredProps()
+                            else
+                                DebugPrint("Props still exist (" .. #PlayerProps .. "), no need to recreate")
+                            end
+                        end)
+                    else
+                        EmoteCancel()
+                    end
                 end
                 if not Config.AllowPunchingDuringEmote then
                     DisableControlAction(2, 140, true)
@@ -324,6 +430,7 @@ local function addProp(data)
         PreviewPedProps[#PreviewPedProps+1] = attachedProp
     else
         PlayerProps[#PlayerProps+1] = attachedProp
+        DebugPrint("Added prop " .. data.prop1 .. " to PlayerProps, total props: " .. #PlayerProps)
     end
 
     SetModelAsNoLongerNeeded(data.prop1)
@@ -517,18 +624,92 @@ end
 
 ---@param isClone? boolean
 function DestroyAllProps(isClone)
+    -- Skip destruction if we're in hands up mode and config says to keep props
+    if not isClone and Config.KeepPropsWhenHandsUp and (InHandsup or PreservingHandsUpProps) then
+        DebugPrint("Skipping prop destruction - InHandsup=" .. tostring(InHandsup) .. ", PreservingHandsUpProps=" .. tostring(PreservingHandsUpProps))
+        return
+    end
+    
     if isClone then
         for _, v in pairs(PreviewPedProps) do
             DeleteEntity(v)
         end
         PreviewPedProps = {}
     else
+        DebugPrint("DestroyAllProps called - destroying " .. #PlayerProps .. " props")
+        DebugPrint("Call stack: " .. debug.traceback())
         for _, v in pairs(PlayerProps) do
             DeleteEntity(v)
         end
         PlayerProps = {}
     end
     DebugPrint("Destroyed Props for " .. (isClone and "clone" or "player"))
+end
+
+-- Store current prop information for later recreation
+function StorePropsInfo()
+    StoredPropsInfo = {}
+    DebugPrint("StorePropsInfo called - CurrentAnimOptions exists: " .. tostring(CurrentAnimOptions ~= nil))
+    if CurrentAnimOptions and CurrentAnimOptions.Prop then
+        StoredPropsInfo = {
+            AnimOptions = CurrentAnimOptions,
+            TextureVariation = CurrentTextureVariation,
+            AnimationName = CurrentAnimationName
+        }
+        -- Also store as last valid prop info
+        LastValidPropInfo = {
+            AnimOptions = CurrentAnimOptions,
+            TextureVariation = CurrentTextureVariation,
+            AnimationName = CurrentAnimationName
+        }
+        DebugPrint("Stored prop info for: " .. CurrentAnimOptions.Prop .. " (PlayerProps count: " .. #PlayerProps .. ")")
+        return true
+    else
+        DebugPrint("No prop info to store")
+        return false
+    end
+end
+
+-- Recreate props from stored information
+function RecreateStoredProps()
+    DebugPrint("RecreateStoredProps called - StoredPropsInfo exists: " .. tostring(StoredPropsInfo ~= nil))
+    
+    -- Try stored props first, then fall back to last valid
+    local propsToRecreate = nil
+    if StoredPropsInfo and StoredPropsInfo.AnimOptions and StoredPropsInfo.AnimOptions.Prop then
+        propsToRecreate = StoredPropsInfo
+    elseif LastValidPropInfo and LastValidPropInfo.AnimOptions and LastValidPropInfo.AnimOptions.Prop then
+        DebugPrint("Using LastValidPropInfo as fallback")
+        propsToRecreate = LastValidPropInfo
+    end
+    
+    if propsToRecreate then
+        DebugPrint("Recreating props from stored info - Prop: " .. propsToRecreate.AnimOptions.Prop)
+        DebugPrint("Current PlayerProps count before recreation: " .. #PlayerProps)
+        
+        -- Temporarily restore the animation options
+        local oldAnimOptions = CurrentAnimOptions
+        local oldTextureVariation = CurrentTextureVariation
+        local oldAnimationName = CurrentAnimationName
+        
+        CurrentAnimOptions = propsToRecreate.AnimOptions
+        CurrentTextureVariation = propsToRecreate.TextureVariation
+        CurrentAnimationName = propsToRecreate.AnimationName
+        
+        -- Recreate the props
+        if propsToRecreate.AnimOptions.Prop then
+            addProps(propsToRecreate.AnimOptions, propsToRecreate.TextureVariation, false)
+        end
+        
+        -- Restore original values
+        CurrentAnimOptions = oldAnimOptions
+        CurrentTextureVariation = oldTextureVariation
+        CurrentAnimationName = oldAnimationName
+        
+        DebugPrint("Props recreated - New PlayerProps count: " .. #PlayerProps)
+    else
+        DebugPrint("No stored prop info to recreate")
+    end
 end
 
 local function playExitAndEnterEmote(name, textureVariation)
@@ -669,6 +850,11 @@ function OnEmotePlay(name, textureVariation)
     end
 
     ChosenScenarioType = emoteData.scenarioType
+    
+    -- Store old values before updating
+    local oldAnimOptions = CurrentAnimOptions
+    local oldAnimationName = CurrentAnimationName
+    
     CurrentAnimationName = name
     LocalPlayer.state:set('currentEmote', name, true)
     CurrentTextureVariation = textureVariation
@@ -681,7 +867,29 @@ function OnEmotePlay(name, textureVariation)
     end
 
     if animOption and animOption.Prop then
-        DestroyAllProps()
+        -- Check if we're replaying the same emote after hands up and should keep props
+        local shouldKeepProps = Config.KeepPropsWhenHandsUp and 
+                              oldAnimOptions and 
+                              oldAnimOptions.Prop == animOption.Prop and
+                              oldAnimationName == name and
+                              #PlayerProps > 0
+        
+        DebugPrint("OnEmotePlay prop check:")
+        DebugPrint("  Config.KeepPropsWhenHandsUp = " .. tostring(Config.KeepPropsWhenHandsUp))
+        DebugPrint("  PreservingHandsUpProps = " .. tostring(PreservingHandsUpProps))
+        DebugPrint("  oldAnimOptions exists = " .. tostring(oldAnimOptions ~= nil))
+        DebugPrint("  oldAnimOptions.Prop = " .. tostring(oldAnimOptions and oldAnimOptions.Prop))
+        DebugPrint("  animOption.Prop = " .. tostring(animOption.Prop))
+        DebugPrint("  oldAnimationName = " .. tostring(oldAnimationName))
+        DebugPrint("  name = " .. tostring(name))
+        DebugPrint("  PlayerProps count = " .. #PlayerProps)
+        DebugPrint("  shouldKeepProps = " .. tostring(shouldKeepProps))
+        
+        if shouldKeepProps then
+            DebugPrint("Keeping existing props when replaying emote '" .. name .. "' after hands up")
+        else
+            DestroyAllProps()
+        end
     end
 
     if emoteData.scenario then

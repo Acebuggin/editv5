@@ -83,6 +83,13 @@ Config = {
     -- Preview Ped : Shows a preview of the emote on the player's ped next to the emote menu. Note that resmon will increase when this when emotes are being previewed.
     PreviewPed = true,
 
+    -- Prop Persistence Options
+    KeepPropsWhenAiming = false, -- If true, props will not be removed when aiming a weapon
+    KeepPropsWhenHandsUp = false, -- If true, props will not be removed when putting hands up
+    
+    -- Debug Options
+    EnableDebugPrints = false, -- Enable/disable debug prints for troubleshooting
+
     CheckForUpdates = true,
     DebugDisplay = false,
 }

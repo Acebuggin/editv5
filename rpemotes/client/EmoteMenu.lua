@@ -32,6 +32,28 @@ _menuPool:Add(mainMenu)
 
 local sharemenu, shareddancemenu, infomenu
 
+-- Safe wrapper functions
+local function SafeEmoteMenuStart(name, category, textureVariation)
+    local func = EmoteMenuStart or _G.EmoteMenuStart or _G["EmoteMenuStart"]
+    if func then
+        func(name, category, textureVariation)
+    else
+        print("^1ERROR: EmoteMenuStart not available^7")
+        if OnEmotePlay then
+            OnEmotePlay(name, textureVariation)
+        end
+    end
+end
+
+local function SafeEmoteMenuStartClone(name, category)
+    local func = EmoteMenuStartClone or _G.EmoteMenuStartClone or _G["EmoteMenuStartClone"]
+    if func then
+        func(name, category)
+    else
+        print("^1ERROR: EmoteMenuStartClone not available^7")
+    end
+end
+
 local EmoteTable = {}
 local DanceTable = {}
 local AnimalTable = {}
@@ -117,18 +139,18 @@ function AddEmoteMenu(menu)
 
     dancemenu.OnIndexChange = function(_, newindex)
         ClearPedTaskPreview()
-        EmoteMenuStartClone(DanceTable[newindex], Category.DANCES)
+        SafeEmoteMenuStartClone(DanceTable[newindex], Category.DANCES)
     end
 
     propmenu.OnIndexChange = function(_, newindex)
         ClearPedTaskPreview()
-        EmoteMenuStartClone(PropTable[newindex], Category.PROP_EMOTES)
+        SafeEmoteMenuStartClone(PropTable[newindex], Category.PROP_EMOTES)
     end
 
     submenu.OnIndexChange = function(_, newindex)
         if newindex > 5 then
             ClearPedTaskPreview()
-            EmoteMenuStartClone(EmoteTable[newindex], Category.EMOTES)
+            SafeEmoteMenuStartClone(EmoteTable[newindex], Category.EMOTES)
         end
     end
 
@@ -193,6 +215,30 @@ function AddEmoteMenu(menu)
     end
 
 end
+
+-- Wait for Emote functions to be available
+local function WaitForEmoteFunctions()
+    local timeout = 0
+    while (not EmoteMenuStart or not EmoteMenuStartClone) and timeout < 5000 do
+        Wait(100)
+        timeout = timeout + 100
+        if timeout % 500 == 0 then
+            print("[rpemotes] Waiting for functions... EmoteMenuStart: " .. tostring(EmoteMenuStart ~= nil) .. ", EmoteMenuStartClone: " .. tostring(EmoteMenuStartClone ~= nil))
+        end
+    end
+    if not EmoteMenuStart or not EmoteMenuStartClone then
+        print("^1ERROR: Emote functions not available after 5 seconds!^7")
+        print("^1EmoteMenuStart: " .. tostring(EmoteMenuStart) .. ", EmoteMenuStartClone: " .. tostring(EmoteMenuStartClone) .. "^7")
+        return false
+    end
+    print("[rpemotes] Emote functions loaded successfully!")
+    return true
+end
+
+-- Call this when the resource starts
+CreateThread(function()
+    WaitForEmoteFunctions()
+end)
 
 if Config.Search then
     local ignoredCategories = {
@@ -270,7 +316,7 @@ if Config.Search then
             local data = results[newindex]
 
             ClearPedTaskPreview()
-            EmoteMenuStartClone(data.name, data.data.category)
+            SafeEmoteMenuStartClone(data.name, data.data.category)
         end
 
 
@@ -288,7 +334,11 @@ if Config.Search then
                     SimpleNotify(Translate('nobodyclose'))
                 end
             else
-                EmoteMenuStart(data.name, data.data.category)
+                DebugPrint("Attempting to call EmoteMenuStart with: " .. tostring(data.name) .. ", " .. tostring(data.data.category))
+                DebugPrint("EmoteMenuStart function exists: " .. tostring(EmoteMenuStart ~= nil))
+                DebugPrint("_G.EmoteMenuStart function exists: " .. tostring(_G.EmoteMenuStart ~= nil))
+                
+                SafeEmoteMenuStart(data.name, data.data.category)
             end
         end
 
@@ -397,7 +447,7 @@ function AddFaceMenu(menu)
 
 
     submenu.OnIndexChange = function(_, newindex)
-        EmoteMenuStartClone(FaceTable[newindex], Category.EXPRESSIONS)
+        SafeEmoteMenuStartClone(FaceTable[newindex], Category.EXPRESSIONS)
     end
 
     submenu.OnItemSelect = function(_, item, index)

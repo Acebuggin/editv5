@@ -49,7 +49,27 @@ if Config.HandsupEnabled then
         InHandsup = not InHandsup
         if InHandsup then
             LocalPlayer.state:set('currentEmote', 'handsup', true)
-            DestroyAllProps()
+            
+            -- Set flag to preserve props if config is enabled
+            if Config.KeepPropsWhenHandsUp and PreservingHandsUpProps ~= nil then
+                PreservingHandsUpProps = true
+                DebugPrint("Hands up - setting PreservingHandsUpProps = true")
+            end
+            
+            -- Store props info if we need to keep them
+            local needToRecreateProp = false
+            if Config.KeepPropsWhenHandsUp and StorePropsInfo then
+                StorePropsInfo()
+                needToRecreateProp = true
+                DebugPrint("Storing props info before hands up")
+            end
+            
+            if not Config.KeepPropsWhenHandsUp then
+                DestroyAllProps()
+            else
+                DebugPrint("Hands up - keeping props due to KeepPropsWhenHandsUp config")
+            end
+            
             local dict = "random@mugging3"
             RequestAnimDict(dict)
             while not HasAnimDictLoaded(dict) do
@@ -58,18 +78,51 @@ if Config.HandsupEnabled then
             TaskPlayAnim(PlayerPedId(), dict, "handsup_standing_base", 3.0, 3.0, -1, 49, 0, false,
                 IsThisModelABike(GetEntityModel(GetVehiclePedIsIn(PlayerPedId(), false))) and 4127 or false, false)
             HandsUpLoop()
+            
+            -- Recreate props after animation starts
+            if needToRecreateProp and RecreateStoredProps then
+                CreateThread(function()
+                    Wait(50) -- Shorter wait time
+                    if #PlayerProps == 0 then
+                        DebugPrint("Props were destroyed by hands up animation, recreating")
+                        RecreateStoredProps()
+                    end
+                end)
+            end
         else
             LocalPlayer.state:set('currentEmote', nil, true)
             ClearPedSecondaryTask(PlayerPedId())
             if Config.ReplayEmoteAfterHandsup and IsInAnimation then
                 local emote = EmoteData[CurrentAnimationName]
                 if not emote then
+                    -- Clear the flag if no emote to replay
+                    if PreservingHandsUpProps ~= nil then
+                        PreservingHandsUpProps = false
+                    end
                     return
                 end
 
                 Wait(400)
-                DestroyAllProps()
+                if not Config.KeepPropsWhenHandsUp then
+                    DestroyAllProps()
+                else
+                    DebugPrint("Hands down - keeping props due to KeepPropsWhenHandsUp config")
+                end
                 OnEmotePlay(CurrentAnimationName, CurrentTextureVariation)
+                
+                -- Clear the flag after replaying emote
+                if PreservingHandsUpProps ~= nil then
+                    CreateThread(function()
+                        Wait(500)
+                        PreservingHandsUpProps = false
+                        DebugPrint("Hands down - clearing PreservingHandsUpProps flag")
+                    end)
+                end
+            else
+                -- Clear the flag if not replaying emote
+                if PreservingHandsUpProps ~= nil then
+                    PreservingHandsUpProps = false
+                end
             end
         end
     end
