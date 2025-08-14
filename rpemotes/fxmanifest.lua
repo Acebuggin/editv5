@@ -56,6 +56,7 @@ client_scripts {
     'client/Walk.lua',
     'client/test_handsup.lua',
     'client/rob_compatibility.lua',
+    'client/radialmenu_debug.lua',
 }
 
 

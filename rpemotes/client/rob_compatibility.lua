@@ -48,23 +48,43 @@ RegisterNetEvent('police:client:RobPlayer', function()
                 ClearPedTasks(ped)
             else
                 -- Cancelled
-                QBCore.Functions.Notify("Robbery cancelled", "error")
+                lib.notify({
+                    title = 'Robbery',
+                    description = 'Robbery cancelled',
+                    type = 'error'
+                })
                 ClearPedTasks(ped)
             end
         else
-            QBCore.Functions.Notify("This person doesn't have their hands up!", "error")
+            lib.notify({
+                title = 'Cannot Rob',
+                description = "This person doesn't have their hands up!",
+                type = 'error'
+            })
         end
     else
-        QBCore.Functions.Notify("No one nearby to rob!", "error")
+        lib.notify({
+            title = 'Cannot Rob',
+            description = 'No one nearby to rob!',
+            type = 'error'
+        })
     end
 end)
 
 -- Server-side handler for robbing
 RegisterNetEvent('police:client:RobFinished', function(success, amount)
     if success then
-        QBCore.Functions.Notify("You robbed $" .. amount, "success")
+        lib.notify({
+            title = 'Robbery Successful',
+            description = 'You robbed $' .. amount,
+            type = 'success'
+        })
     else
-        QBCore.Functions.Notify("This person has no cash!", "error")
+        lib.notify({
+            title = 'Robbery Failed', 
+            description = 'This person has no cash!',
+            type = 'error'
+        })
     end
 end)
 
