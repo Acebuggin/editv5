@@ -83,6 +83,11 @@ end)
 
 -- Prop preservation monitoring thread
 CreateThread(function()
+    Wait(1000) -- Wait for everything to initialize
+    if not Config or not Config.KeepPropsWhenAiming then 
+        return -- Exit thread if config not loaded or feature disabled
+    end
+    
     local lastPropCount = 0
     local wasAiming = false
     local storedAnimOptions = nil
@@ -905,3 +910,12 @@ AddEventHandler('onResourceStop', function(resource)
     DetachEntity(ped, true, false)
     ResetPedMovementClipset(ped, 0.8)
 end)
+
+-- Debug: Confirm file loaded completely
+if Config and Config.EnableDebugPrints then
+    print("[rpemotes] Emote.lua loaded successfully - EmoteMenuStart exists: " .. tostring(EmoteMenuStart ~= nil))
+end
+
+-- Create exports for menu functions
+exports('EmoteMenuStart', EmoteMenuStart)
+exports('EmoteMenuStartClone', EmoteMenuStartClone)
