@@ -142,13 +142,20 @@ local function runAnimationThread()
                         DebugPrint("Player aiming with KeepPropsWhenAiming enabled - storing and recreating props")
                         -- Store prop info before clearing tasks
                         StorePropsInfo()
+                        -- Store current prop count
+                        local propsBeforeClear = #PlayerProps
                         -- Clear the animation
                         ClearPedTasks(pPed)
                         IsInAnimation = false
-                        -- Recreate props after a short delay
+                        -- Check if props were actually destroyed
                         CreateThread(function()
                             Wait(100)
-                            RecreateStoredProps()
+                            if #PlayerProps < propsBeforeClear then
+                                DebugPrint("Props were destroyed (" .. propsBeforeClear .. " -> " .. #PlayerProps .. "), recreating")
+                                RecreateStoredProps()
+                            else
+                                DebugPrint("Props still exist (" .. #PlayerProps .. "), no need to recreate")
+                            end
                         end)
                     else
                         EmoteCancel()
@@ -817,7 +824,17 @@ function OnEmotePlay(name, textureVariation)
     end
 
     if animOption and animOption.Prop then
-        DestroyAllProps()
+        -- Check if we're replaying the same emote after hands up and should keep props
+        local shouldKeepProps = Config.KeepPropsWhenHandsUp and 
+                              CurrentAnimOptions and 
+                              CurrentAnimOptions.Prop == animOption.Prop and
+                              #PlayerProps > 0
+        
+        if shouldKeepProps then
+            DebugPrint("Keeping existing props when replaying emote after hands up")
+        else
+            DestroyAllProps()
+        end
     end
 
     if emoteData.scenario then
