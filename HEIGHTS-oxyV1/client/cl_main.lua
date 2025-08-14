@@ -120,7 +120,7 @@ local CreateDropOffPed = function(coords)
 				if IsControlJustPressed(0, 38) then -- E
 					debugPrint("E pressed for delivery. inReturnZone: " .. tostring(inReturnZone))
 					exports.ox_lib:hideTextUI()
-					TriggerEvent('qb-oxyruns:client:DeliverOxy')
+					TriggerEvent('HEIGHTS-oxyV1:client:DeliverOxy')
 					break
 				end
 			else
@@ -281,13 +281,13 @@ local EndOxyRun = function(withRefund)
 	exports.ox_lib:hideTextUI()
 	
 	-- Notify server (with refund parameter)
-	TriggerServerEvent('qb-oxyruns:server:EndRun', withRefund)
+	TriggerServerEvent('HEIGHTS-oxyV1:server:EndRun', withRefund)
 end
 
-RegisterNetEvent("qb-oxyruns:client:StartOxy", function()
+RegisterNetEvent("HEIGHTS-oxyV1:client:StartOxy", function()
 	-- Remove the check for started - let server handle it
 	debugPrint("StartOxy event triggered")
-	QBCore.Functions.TriggerCallback('qb-oxyruns:server:StartOxy', function(canStart, vehicleModel)
+	QBCore.Functions.TriggerCallback('HEIGHTS-oxyV1:server:StartOxy', function(canStart, vehicleModel)
 		if canStart then
 			-- If run is already started, just spawn new vehicle
 			if started then
@@ -325,7 +325,7 @@ RegisterNetEvent("qb-oxyruns:client:StartOxy", function()
 	end)
 end)
 
-RegisterNetEvent('qb-oxyruns:client:DeliverOxy', function()
+RegisterNetEvent('HEIGHTS-oxyV1:client:DeliverOxy', function()
 	debugPrint("DeliverOxy event triggered. madeDeal: " .. tostring(madeDeal) .. ", inReturnZone: " .. tostring(inReturnZone))
 	if madeDeal or inReturnZone then 
 		debugPrint("Delivery blocked - madeDeal or inReturnZone")
@@ -385,7 +385,7 @@ RegisterNetEvent('qb-oxyruns:client:DeliverOxy', function()
 
 		-- Reward
 		debugPrint("Sending reward to server")
-		TriggerServerEvent('qb-oxyruns:server:Reward')
+		TriggerServerEvent('HEIGHTS-oxyV1:server:Reward')
 
 		-- Finishing up
 		if dropOffArea then
@@ -561,7 +561,7 @@ CreateThread(function()
 					if IsControlJustPressed(0, 38) then -- E
 						debugPrint("Starting/Getting new oxy vehicle from starter zone")
 						exports.ox_lib:hideTextUI()
-						TriggerEvent('qb-oxyruns:client:StartOxy')
+						TriggerEvent('HEIGHTS-oxyV1:client:StartOxy')
 						break
 					end
 				end
