@@ -827,6 +827,11 @@ function OnEmotePlay(name, textureVariation)
     end
 
     ChosenScenarioType = emoteData.scenarioType
+    
+    -- Store old values before updating
+    local oldAnimOptions = CurrentAnimOptions
+    local oldAnimationName = CurrentAnimationName
+    
     CurrentAnimationName = name
     LocalPlayer.state:set('currentEmote', name, true)
     CurrentTextureVariation = textureVariation
@@ -841,12 +846,13 @@ function OnEmotePlay(name, textureVariation)
     if animOption and animOption.Prop then
         -- Check if we're replaying the same emote after hands up and should keep props
         local shouldKeepProps = Config.KeepPropsWhenHandsUp and 
-                              CurrentAnimOptions and 
-                              CurrentAnimOptions.Prop == animOption.Prop and
+                              oldAnimOptions and 
+                              oldAnimOptions.Prop == animOption.Prop and
+                              oldAnimationName == name and
                               #PlayerProps > 0
         
         if shouldKeepProps then
-            DebugPrint("Keeping existing props when replaying emote after hands up")
+            DebugPrint("Keeping existing props when replaying emote '" .. name .. "' after hands up")
         else
             DestroyAllProps()
         end
