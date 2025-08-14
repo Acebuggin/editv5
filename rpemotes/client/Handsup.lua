@@ -21,6 +21,44 @@ local function HandsUpLoop()
 end
 
 if Config.HandsupEnabled then
+    -- Prop preservation monitoring thread for hands up
+    CreateThread(function()
+        local lastPropCount = 0
+        local wasInHandsup = false
+        local storedAnimOptions = nil
+        local storedTextureVariation = nil
+        
+        while true do
+            Wait(50) -- Check every 50ms
+            
+            local currentPropCount = #PlayerProps
+            
+            -- Store prop info when we start hands up with props
+            if InHandsup and not wasInHandsup and currentPropCount > 0 and Config.KeepPropsWhenHandsUp then
+                storedAnimOptions = CurrentAnimOptions
+                storedTextureVariation = CurrentTextureVariation
+                DebugPrint("Started hands up with " .. currentPropCount .. " props - storing info")
+            end
+            
+            -- Detect if props were destroyed during hands up
+            if InHandsup and Config.KeepPropsWhenHandsUp and lastPropCount > 0 and currentPropCount == 0 and storedAnimOptions and storedAnimOptions.Prop then
+                DebugPrint("Props destroyed during hands up - recreating them")
+                CurrentAnimOptions = storedAnimOptions
+                CurrentTextureVariation = storedTextureVariation
+                RecreateProps()
+            end
+            
+            -- Clear stored info when we stop hands up
+            if not InHandsup and wasInHandsup then
+                storedAnimOptions = nil
+                storedTextureVariation = nil
+            end
+            
+            lastPropCount = currentPropCount
+            wasInHandsup = InHandsup
+        end
+    end)
+
     local function ToggleHandsUp(commandType)
         RegisterCommand(commandType, function()
             if IsPedInAnyVehicle(PlayerPedId(), false) and not Config.HandsupInCar and not InHandsup then

@@ -21,7 +21,7 @@ end
 
 function DebugPrint(...)
     if Config.DebugDisplay or Config.EnableDebugPrints then
-        print(...)
+        print("[" .. GetGameTimer() .. "]", ...)
     end
 end
 
