@@ -127,7 +127,6 @@ function CleanupSoldPeds()
     
     lastCleanup = currentTime
     soldPeds = {}
-    print("^3[INFO] Sold peds cache cleaned up")
 end
 
 -- ========================================
