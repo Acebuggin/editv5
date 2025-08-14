@@ -1,3 +1,6 @@
+-- Protected loading to catch errors
+local success, err = pcall(function()
+
 -- You probably shouldn't touch these.
 print("[rpemotes] Starting to load Emote.lua")
 IsInAnimation = false
