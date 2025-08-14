@@ -84,6 +84,9 @@ local CreateDropOffPed = function(coords)
 	oxyPed = CreatePed(5, hash, coords.x, coords.y, coords.z-1, coords.w, true, true)
 	while not DoesEntityExist(oxyPed) do Wait(10) end
 	
+	-- Unload the model to free memory
+	SetModelAsNoLongerNeeded(hash)
+	
 	-- Set ped properties
     TaskSetBlockingOfNonTemporaryEvents(oxyPed, true)
     SetPedFleeAttributes(oxyPed, 0, 0)
@@ -182,6 +185,20 @@ local CreateDropOff = function()
 			end
 		else
 			debugPrint("Left dropoff area")
+			-- Start a timer to clean up ped if player doesn't return
+			SetTimeout(60000, function() -- 60 seconds
+				if oxyPed and DoesEntityExist(oxyPed) and not madeDeal then
+					local playerCoords = GetEntityCoords(PlayerPedId())
+					local pedCoords = GetEntityCoords(oxyPed)
+					local distance = #(playerCoords - pedCoords)
+					
+					if distance > 100.0 then -- If player is far away
+						DeleteEntity(oxyPed)
+						oxyPed = nil
+						debugPrint("Cleaned up abandoned oxy ped - player too far")
+					end
+				end
+			end)
 		end
 	end)
 end
@@ -246,15 +263,29 @@ local DeleteOxyped = function()
 	debugPrint("Deleting oxy ped")
 	nearPed = false
 	exports.ox_lib:hideTextUI()
-	FreezeEntityPosition(oxyPed, false)
-	SetPedKeepTask(oxyPed, false)
-	TaskSetBlockingOfNonTemporaryEvents(oxyPed, false)
-	ClearPedTasks(oxyPed)
-	TaskWanderStandard(oxyPed, 10.0, 10)
-	SetPedAsNoLongerNeeded(oxyPed)
-	Wait(20000)
-	DeletePed(oxyPed)
-	oxyPed = nil
+	
+	if oxyPed and DoesEntityExist(oxyPed) then
+		-- Clean up the ped immediately to free memory
+		FreezeEntityPosition(oxyPed, false)
+		SetPedKeepTask(oxyPed, false)
+		TaskSetBlockingOfNonTemporaryEvents(oxyPed, false)
+		ClearPedTasks(oxyPed)
+		
+		-- Make ped wander away briefly then delete
+		TaskWanderStandard(oxyPed, 10.0, 10)
+		SetPedAsNoLongerNeeded(oxyPed)
+		
+		-- Delete after short delay (not 20 seconds!)
+		SetTimeout(5000, function()
+			if oxyPed and DoesEntityExist(oxyPed) then
+				DeleteEntity(oxyPed)
+				debugPrint("Oxy ped deleted from memory")
+			end
+			oxyPed = nil
+		end)
+	else
+		oxyPed = nil
+	end
 end
 
 --- Ends the oxy run and cleans up
@@ -280,6 +311,14 @@ local EndOxyRun = function(withRefund)
 		dropOffArea:destroy()
 		dropOffArea = nil
 	end
+	
+	-- Clean up any remaining ped
+	if oxyPed and DoesEntityExist(oxyPed) then
+		DeleteEntity(oxyPed)
+		debugPrint("Cleaned up oxy ped on run end")
+	end
+	oxyPed = nil
+	madeDeal = false
 	
 	-- Hide textui if showing
 	exports.ox_lib:hideTextUI()
@@ -696,6 +735,30 @@ AddEventHandler('onResourceStop', function(resourceName)
 		EndOxyRun(false)
 	end
 	exports.ox_lib:hideTextUI()
+end)
+
+-- ========================================
+-- CLEANUP ON RESOURCE STOP
+-- ========================================
+
+AddEventHandler('onResourceStop', function(resourceName)
+	if GetCurrentResourceName() == resourceName then
+		-- Clean up everything when resource stops
+		if oxyPed and DoesEntityExist(oxyPed) then
+			DeleteEntity(oxyPed)
+		end
+		if oxyVehicle and DoesEntityExist(oxyVehicle) then
+			DeleteEntity(oxyVehicle)
+		end
+		if dropOffBlip then
+			RemoveBlip(dropOffBlip)
+		end
+		if dropOffArea then
+			dropOffArea:destroy()
+		end
+		exports.ox_lib:hideTextUI()
+		debugPrint("Resource cleanup completed")
+	end
 end)
 
 -- ========================================
