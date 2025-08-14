@@ -83,7 +83,16 @@ local function runAnimationThread()
             if IsInAnimation then
                 sleep = 0
                 if IsPlayerAiming(pPed) then
-                    EmoteCancel()
+                    if Config.KeepPropsWhenAiming then
+                        DebugPrint("Player aiming - canceling animation but keeping props")
+                        -- Cancel animation without destroying props
+                        ClearPedTasks(pPed)
+                        IsInAnimation = false
+                        AnimationThreadStatus = false
+                        LocalPlayer.state:set('currentEmote', nil, true)
+                    else
+                        EmoteCancel()
+                    end
                 end
                 if not Config.AllowPunchingDuringEmote then
                     DisableControlAction(2, 140, true)
@@ -324,6 +333,7 @@ local function addProp(data)
         PreviewPedProps[#PreviewPedProps+1] = attachedProp
     else
         PlayerProps[#PlayerProps+1] = attachedProp
+        DebugPrint("Created prop: " .. data.prop1 .. " (Total props: " .. #PlayerProps .. ")")
     end
 
     SetModelAsNoLongerNeeded(data.prop1)
@@ -523,6 +533,7 @@ function DestroyAllProps(isClone)
         end
         PreviewPedProps = {}
     else
+        DebugPrint("DestroyAllProps called - destroying " .. #PlayerProps .. " props")
         for _, v in pairs(PlayerProps) do
             DeleteEntity(v)
         end

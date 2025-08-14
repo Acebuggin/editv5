@@ -20,7 +20,7 @@ CreateExport = function(name, func)
 end
 
 function DebugPrint(...)
-    if Config.DebugDisplay then
+    if Config.DebugDisplay or Config.EnableDebugPrints then
         print(...)
     end
 end

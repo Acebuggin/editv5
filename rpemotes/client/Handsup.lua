@@ -49,7 +49,11 @@ if Config.HandsupEnabled then
         InHandsup = not InHandsup
         if InHandsup then
             LocalPlayer.state:set('currentEmote', 'handsup', true)
-            DestroyAllProps()
+            if not Config.KeepPropsWhenHandsUp then
+                DestroyAllProps()
+            else
+                DebugPrint("Hands up - keeping props due to KeepPropsWhenHandsUp config")
+            end
             local dict = "random@mugging3"
             RequestAnimDict(dict)
             while not HasAnimDictLoaded(dict) do
@@ -68,7 +72,11 @@ if Config.HandsupEnabled then
                 end
 
                 Wait(400)
-                DestroyAllProps()
+                if not Config.KeepPropsWhenHandsUp then
+                    DestroyAllProps()
+                else
+                    DebugPrint("Hands down - keeping props due to KeepPropsWhenHandsUp config")
+                end
                 OnEmotePlay(CurrentAnimationName, CurrentTextureVariation)
             end
         end
