@@ -646,6 +646,24 @@ end
 
 ---@param isClone? boolean
 function DestroyAllProps(isClone)
+    -- Skip destruction if we're in hands up mode and config says to keep props
+    if not isClone and Config.KeepPropsWhenHandsUp and (InHandsup or PreservingHandsUpProps) then
+        DebugPrint("Skipping prop destruction - InHandsup=" .. tostring(InHandsup) .. ", PreservingHandsUpProps=" .. tostring(PreservingHandsUpProps))
+        return
+    end
+    
+    -- Add stack trace to see what's calling this
+    if not isClone then
+        DebugPrint("=== DestroyAllProps called for PLAYER ===")
+        DebugPrint("Stack trace:")
+        local traceback = debug.traceback()
+        -- Print each line of the traceback
+        for line in traceback:gmatch("[^\n]+") do
+            DebugPrint(line)
+        end
+        DebugPrint("=== End stack trace ===")
+    end
+    
     if isClone then
         for _, v in pairs(PreviewPedProps) do
             DeleteEntity(v)
@@ -802,6 +820,7 @@ local function playScenario(emoteData)
 end
 
 function OnEmotePlay(name, textureVariation)
+    DebugPrint("=== OnEmotePlay called: " .. name .. " ===")
     local emoteData = EmoteData[name]
     if not emoteData then
         EmoteChatMessage("'" .. name .. "' " .. Translate('notvalidemote') .. "")
