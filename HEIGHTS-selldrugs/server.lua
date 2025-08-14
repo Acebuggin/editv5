@@ -356,9 +356,26 @@ end)
 
 -- Admin command to view server statistics
 RegisterCommand('serverdrugstats', function(source, args)
-    -- Check if player is admin using QBCore instead of ace permissions
+    local isAllowed = false
+    
     if source == 0 then
         -- Console can always use it
+        isAllowed = true
+    else
+        -- Check if player's citizen ID is in the admin list
+        local Player = QBCore.Functions.GetPlayer(source)
+        if Player then
+            local citizenid = Player.PlayerData.citizenid
+            for _, allowedId in ipairs(Config.Admin.allowedCitizenIds) do
+                if citizenid == allowedId then
+                    isAllowed = true
+                    break
+                end
+            end
+        end
+    end
+    
+    if isAllowed then
         local stats = string.format(
             "Server Stats - Total Sales: %d | Revenue: $%d | Failed: %d | Police Alerts: %d",
             serverStats.totalSales,
@@ -391,6 +408,11 @@ RegisterCommand('serverdrugstats', function(source, args)
             else
                 TriggerClientEvent('QBCore:Notify', source, drugStats, "primary", 5000)
             end
+        end
+    else
+        -- Not authorized
+        if source ~= 0 then
+            TriggerClientEvent('QBCore:Notify', source, "You don't have permission to use this command", "error")
         end
     end
 end, false)
