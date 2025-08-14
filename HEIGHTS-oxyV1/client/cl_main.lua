@@ -11,6 +11,7 @@ local dropOffArea = nil
 local nearPed = false
 local inReturnZone = false
 local arrivedInOxyVehicle = false -- Track if player arrived in their oxy vehicle
+local processingEKey = false -- Prevent multiple E key handlers
 
 local peds = {
 	'a_m_y_stwhi_02',
@@ -83,6 +84,9 @@ local CreateDropOffPed = function(coords)
 	oxyPed = CreatePed(5, hash, coords.x, coords.y, coords.z-1, coords.w, true, true)
 	while not DoesEntityExist(oxyPed) do Wait(10) end
 	
+	-- Unload the model to free memory
+	SetModelAsNoLongerNeeded(hash)
+	
 	-- Set ped properties
     TaskSetBlockingOfNonTemporaryEvents(oxyPed, true)
     SetPedFleeAttributes(oxyPed, 0, 0)
@@ -117,10 +121,13 @@ local CreateDropOffPed = function(coords)
 					})
 				end
 				
-				if IsControlJustPressed(0, 38) then -- E
+				if IsControlJustPressed(0, 38) and not processingEKey then -- E
+					processingEKey = true
 					debugPrint("E pressed for delivery. inReturnZone: " .. tostring(inReturnZone))
 					exports.ox_lib:hideTextUI()
-					TriggerEvent('qb-oxyruns:client:DeliverOxy')
+					TriggerEvent('HEIGHTS-oxyV1:client:DeliverOxy')
+					Wait(1000) -- Cooldown
+					processingEKey = false
 					break
 				end
 			else
@@ -178,6 +185,20 @@ local CreateDropOff = function()
 			end
 		else
 			debugPrint("Left dropoff area")
+			-- Start a timer to clean up ped if player doesn't return
+			SetTimeout(60000, function() -- 60 seconds
+				if oxyPed and DoesEntityExist(oxyPed) and not madeDeal then
+					local playerCoords = GetEntityCoords(PlayerPedId())
+					local pedCoords = GetEntityCoords(oxyPed)
+					local distance = #(playerCoords - pedCoords)
+					
+					if distance > 100.0 then -- If player is far away
+						DeleteEntity(oxyPed)
+						oxyPed = nil
+						debugPrint("Cleaned up abandoned oxy ped - player too far")
+					end
+				end
+			end)
 		end
 	end)
 end
@@ -242,15 +263,29 @@ local DeleteOxyped = function()
 	debugPrint("Deleting oxy ped")
 	nearPed = false
 	exports.ox_lib:hideTextUI()
-	FreezeEntityPosition(oxyPed, false)
-	SetPedKeepTask(oxyPed, false)
-	TaskSetBlockingOfNonTemporaryEvents(oxyPed, false)
-	ClearPedTasks(oxyPed)
-	TaskWanderStandard(oxyPed, 10.0, 10)
-	SetPedAsNoLongerNeeded(oxyPed)
-	Wait(20000)
-	DeletePed(oxyPed)
-	oxyPed = nil
+	
+	if oxyPed and DoesEntityExist(oxyPed) then
+		-- Clean up the ped immediately to free memory
+		FreezeEntityPosition(oxyPed, false)
+		SetPedKeepTask(oxyPed, false)
+		TaskSetBlockingOfNonTemporaryEvents(oxyPed, false)
+		ClearPedTasks(oxyPed)
+		
+		-- Make ped wander away briefly then delete
+		TaskWanderStandard(oxyPed, 10.0, 10)
+		SetPedAsNoLongerNeeded(oxyPed)
+		
+		-- Delete after short delay (not 20 seconds!)
+		SetTimeout(5000, function()
+			if oxyPed and DoesEntityExist(oxyPed) then
+				DeleteEntity(oxyPed)
+				debugPrint("Oxy ped deleted from memory")
+			end
+			oxyPed = nil
+		end)
+	else
+		oxyPed = nil
+	end
 end
 
 --- Ends the oxy run and cleans up
@@ -277,17 +312,25 @@ local EndOxyRun = function(withRefund)
 		dropOffArea = nil
 	end
 	
+	-- Clean up any remaining ped
+	if oxyPed and DoesEntityExist(oxyPed) then
+		DeleteEntity(oxyPed)
+		debugPrint("Cleaned up oxy ped on run end")
+	end
+	oxyPed = nil
+	madeDeal = false
+	
 	-- Hide textui if showing
 	exports.ox_lib:hideTextUI()
 	
 	-- Notify server (with refund parameter)
-	TriggerServerEvent('qb-oxyruns:server:EndRun', withRefund)
+	TriggerServerEvent('HEIGHTS-oxyV1:server:EndRun', withRefund)
 end
 
-RegisterNetEvent("qb-oxyruns:client:StartOxy", function()
+RegisterNetEvent("HEIGHTS-oxyV1:client:StartOxy", function()
 	-- Remove the check for started - let server handle it
 	debugPrint("StartOxy event triggered")
-	QBCore.Functions.TriggerCallback('qb-oxyruns:server:StartOxy', function(canStart, vehicleModel)
+	QBCore.Functions.TriggerCallback('HEIGHTS-oxyV1:server:StartOxy', function(canStart, vehicleModel)
 		if canStart then
 			-- If run is already started, just spawn new vehicle
 			if started then
@@ -325,7 +368,7 @@ RegisterNetEvent("qb-oxyruns:client:StartOxy", function()
 	end)
 end)
 
-RegisterNetEvent('qb-oxyruns:client:DeliverOxy', function()
+RegisterNetEvent('HEIGHTS-oxyV1:client:DeliverOxy', function()
 	debugPrint("DeliverOxy event triggered. madeDeal: " .. tostring(madeDeal) .. ", inReturnZone: " .. tostring(inReturnZone))
 	if madeDeal or inReturnZone then 
 		debugPrint("Delivery blocked - madeDeal or inReturnZone")
@@ -385,7 +428,7 @@ RegisterNetEvent('qb-oxyruns:client:DeliverOxy', function()
 
 		-- Reward
 		debugPrint("Sending reward to server")
-		TriggerServerEvent('qb-oxyruns:server:Reward')
+		TriggerServerEvent('HEIGHTS-oxyV1:server:Reward')
 
 		-- Finishing up
 		if dropOffArea then
@@ -411,6 +454,33 @@ CreateThread(function()
 		name = "oxyReturnZone",
 		debugPoly = false
 	})
+	
+	-- Create return zone blip when oxy run is active
+	local returnBlip = nil
+	CreateThread(function()
+		while true do
+			Wait(1000)
+			if started and oxyVehicle and DoesEntityExist(oxyVehicle) then
+				if not returnBlip then
+					returnBlip = AddBlipForCoord(Config.VehicleSpawnLocation.x, Config.VehicleSpawnLocation.y, Config.VehicleSpawnLocation.z)
+					SetBlipSprite(returnBlip, 50) -- Garage icon
+					SetBlipScale(returnBlip, 0.8)
+					SetBlipColour(returnBlip, 3) -- Blue
+					SetBlipAsShortRange(returnBlip, false)
+					BeginTextCommandSetBlipName("STRING")
+					AddTextComponentString("Return Vehicle")
+					EndTextCommandSetBlipName(returnBlip)
+					debugPrint("Created return zone blip")
+				end
+			else
+				if returnBlip then
+					RemoveBlip(returnBlip)
+					returnBlip = nil
+					debugPrint("Removed return zone blip")
+				end
+			end
+		end
+	end)
 	
 	-- Draw marker thread
 	CreateThread(function()
@@ -477,8 +547,20 @@ CreateThread(function()
 					})
 					
 					CreateThread(function()
-						while isPointInside and started do
+						while inReturnZone and started do
 							Wait(0)
+							-- Double check we're actually in the return zone
+							local playerCoords = GetEntityCoords(PlayerPedId())
+							local returnCoords = Config.VehicleSpawnLocation
+							local distanceToReturn = #(playerCoords - vector3(returnCoords.x, returnCoords.y, returnCoords.z))
+							
+							if distanceToReturn > 5.0 then
+								-- Player moved too far from return zone
+								exports.ox_lib:hideTextUI()
+								debugPrint("Player left return zone - hiding UI")
+								break
+							end
+							
 							-- Must still be in vehicle
 							local currentVeh = GetVehiclePedIsIn(PlayerPedId(), false)
 							if currentVeh ~= oxyVehicle then
@@ -496,18 +578,33 @@ CreateThread(function()
 								end
 							end
 							
-							if IsControlJustPressed(0, 38) then -- E
+							if IsControlJustPressed(0, 38) and not processingEKey then -- E
+								processingEKey = true
+								-- Triple check distance to return zone before allowing return
+								local finalPlayerCoords = GetEntityCoords(PlayerPedId())
+								local finalDistToReturn = #(finalPlayerCoords - vector3(returnCoords.x, returnCoords.y, returnCoords.z))
+								
+								if finalDistToReturn > 5.0 then
+									debugPrint("E pressed but too far from return zone - ignoring")
+									QBCore.Functions.Notify("You must be at the return location to return the vehicle", "error")
+									processingEKey = false
+									break
+								end
+								
 								-- Final check before ending run
 								if oxyPed and DoesEntityExist(oxyPed) then
 									local finalDist = #(GetEntityCoords(PlayerPedId()) - GetEntityCoords(oxyPed))
 									if finalDist < 10.0 then
 										debugPrint("E pressed but near delivery ped - ignoring return command")
+										processingEKey = false
 										break
 									end
 								end
 								debugPrint("E pressed in return zone - ending run")
 								exports.ox_lib:hideTextUI()
 								EndOxyRun(true) -- true = with refund
+								Wait(1000) -- Cooldown
+								processingEKey = false
 								break
 							end
 						end
@@ -558,10 +655,32 @@ CreateThread(function()
 			CreateThread(function()
 				while isPointInside do
 					Wait(0)
-					if IsControlJustPressed(0, 38) then -- E
-						debugPrint("Starting/Getting new oxy vehicle from starter zone")
+					-- Double check distance to starter location
+					local playerCoords = GetEntityCoords(PlayerPedId())
+					local distanceToStarter = #(playerCoords - vector3(Config.StartLocation.x, Config.StartLocation.y, Config.StartLocation.z))
+					
+					if distanceToStarter > 3.0 then
+						-- Player moved away from starter zone
 						exports.ox_lib:hideTextUI()
-						TriggerEvent('qb-oxyruns:client:StartOxy')
+						debugPrint("Player left starter zone - hiding UI")
+						break
+					end
+					
+					if IsControlJustPressed(0, 38) and not processingEKey then -- E
+						processingEKey = true
+						-- Triple check distance before allowing start
+						local finalCoords = GetEntityCoords(PlayerPedId())
+						local finalDist = #(finalCoords - vector3(Config.StartLocation.x, Config.StartLocation.y, Config.StartLocation.z))
+						
+						if finalDist <= 3.0 then
+							debugPrint("Starting/Getting new oxy vehicle from starter zone")
+							exports.ox_lib:hideTextUI()
+							TriggerEvent('HEIGHTS-oxyV1:client:StartOxy')
+							Wait(1000) -- Cooldown
+						else
+							debugPrint("E pressed but too far from starter zone - ignoring")
+						end
+						processingEKey = false
 						break
 					end
 				end
@@ -616,4 +735,59 @@ AddEventHandler('onResourceStop', function(resourceName)
 		EndOxyRun(false)
 	end
 	exports.ox_lib:hideTextUI()
+end)
+
+-- ========================================
+-- CLEANUP ON RESOURCE STOP
+-- ========================================
+
+AddEventHandler('onResourceStop', function(resourceName)
+	if GetCurrentResourceName() == resourceName then
+		-- Clean up everything when resource stops
+		if oxyPed and DoesEntityExist(oxyPed) then
+			DeleteEntity(oxyPed)
+		end
+		if oxyVehicle and DoesEntityExist(oxyVehicle) then
+			DeleteEntity(oxyVehicle)
+		end
+		if dropOffBlip then
+			RemoveBlip(dropOffBlip)
+		end
+		if dropOffArea then
+			dropOffArea:destroy()
+		end
+		exports.ox_lib:hideTextUI()
+		debugPrint("Resource cleanup completed")
+	end
+end)
+
+-- ========================================
+-- EXPORT FUNCTIONS
+-- ========================================
+
+--- Export function to get the current oxy delivery ped
+--- @return entity|nil - Returns the oxy ped entity or nil if none exists
+exports('GetOxyDeliveryPed', function()
+	return oxyPed
+end)
+
+--- Export function to check if a specific ped is the oxy delivery ped
+--- @param ped entity - The ped entity to check
+--- @return boolean - Returns true if the ped is the oxy delivery ped
+exports('IsOxyDeliveryPed', function(ped)
+	if not ped or not DoesEntityExist(ped) then
+		return false
+	end
+	return ped == oxyPed
+end)
+
+--- Export function to get all active oxy delivery data
+--- @return table - Returns table with delivery status and ped info
+exports('GetOxyDeliveryData', function()
+	return {
+		isActive = started and hasDropOff,
+		hasPed = oxyPed ~= nil and DoesEntityExist(oxyPed),
+		ped = oxyPed,
+		madeDeal = madeDeal
+	}
 end)

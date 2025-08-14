@@ -3,7 +3,7 @@ local QBCore = exports['qb-core']:GetCoreObject()
 -- Store active oxy runs
 local activeRuns = {}
 
-RegisterNetEvent('qb-oxyruns:server:Reward', function()
+RegisterNetEvent('HEIGHTS-oxyV1:server:Reward', function()
     local src = source
     local Player = QBCore.Functions.GetPlayer(src)
     if Player then
@@ -21,7 +21,7 @@ RegisterNetEvent('qb-oxyruns:server:Reward', function()
     end
 end)
 
-QBCore.Functions.CreateCallback('qb-oxyruns:server:StartOxy', function(source, cb)
+QBCore.Functions.CreateCallback('HEIGHTS-oxyV1:server:StartOxy', function(source, cb)
     local src = source
     local Player = QBCore.Functions.GetPlayer(src)
 
@@ -53,7 +53,7 @@ QBCore.Functions.CreateCallback('qb-oxyruns:server:StartOxy', function(source, c
     end
 end)
 
-RegisterNetEvent('qb-oxyruns:server:EndRun', function(withRefund)
+RegisterNetEvent('HEIGHTS-oxyV1:server:EndRun', function(withRefund)
     local src = source
     local Player = QBCore.Functions.GetPlayer(src)
     

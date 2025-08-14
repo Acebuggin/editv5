@@ -127,7 +127,6 @@ function CleanupSoldPeds()
     
     lastCleanup = currentTime
     soldPeds = {}
-    print("^3[INFO] Sold peds cache cleaned up")
 end
 
 -- ========================================
@@ -589,19 +588,33 @@ CreateThread(function()
                     end
 
                     if dist < Config.ScanDistance and not soldPeds[ped] and not IsPedInAnyVehicle(ped, false) then
-                        nearbyPedCount = nearbyPedCount + 1
-                        sleep = 0
+                        -- Check if this is an oxy delivery ped
+                        local isOxyPed = false
+                        if GetResourceState('HEIGHTS-oxyV1') == 'started' then
+                            isOxyPed = exports['HEIGHTS-oxyV1']:IsOxyDeliveryPed(ped)
+                        end
+                        
+                        if not isOxyPed then
+                            nearbyPedCount = nearbyPedCount + 1
+                            sleep = 0
 
-                        if dist < Config.DrawTextDistance then
-                            -- Only show text and allow selling if NOT in restricted zone
-                            if not inRestrictedZone then
-                                DrawText3D(pedCoords.x, pedCoords.y, pedCoords.z + 0.3, 'Sell Drugs')
-                                if dist < Config.SellDistance then
-                                    sellingPed = ped
+                            if dist < Config.DrawTextDistance then
+                                -- Only show text and allow selling if NOT in restricted zone
+                                if not inRestrictedZone then
+                                    DrawText3D(pedCoords.x, pedCoords.y, pedCoords.z + 0.3, 'Sell Drugs')
+                                    if dist < Config.SellDistance then
+                                        sellingPed = ped
+                                        -- Check for E key press directly since command is disabled
+                                        if IsControlJustPressed(0, 38) then -- E key
+                                            if sellingPed and not sellingInProgress then
+                                                SafeTryToSellToPed(sellingPed)
+                                            end
+                                        end
+                                    end
+                                else
+                                    -- Show zone notification when in restricted area
+                                    ShowZoneNotification(currentZone)
                                 end
-                            else
-                                -- Show zone notification when in restricted area
-                                ShowZoneNotification(currentZone)
                             end
                         end
                     end
@@ -638,6 +651,14 @@ end
 -- Try to sell drugs to a ped
 function TryToSellToPed(ped)
     if soldPeds[ped] or sellingInProgress then return end
+    
+    -- Check if this is an oxy delivery ped
+    if GetResourceState('HEIGHTS-oxyV1') == 'started' then
+        if exports['HEIGHTS-oxyV1']:IsOxyDeliveryPed(ped) then
+            QBCore.Functions.Notify("This person is busy with another transaction.", "error")
+            return
+        end
+    end
 
     if onCooldown then
         QBCore.Functions.Notify("You need to wait before selling more.", "error")
@@ -802,15 +823,18 @@ end
 -- ========================================
 
 -- Manual sell command
+--[[ Commented out by request
 RegisterCommand('trySell', function()
     if sellingPed and not sellingInProgress then
         SafeTryToSellToPed(sellingPed)
     end
 end, false)
+--]]
 
-RegisterKeyMapping('trySell', 'Sell Drugs to Ped', 'keyboard', 'E')
+-- RegisterKeyMapping('trySell', 'Sell Drugs to Ped', 'keyboard', 'E') -- Commented out with command
 
 -- Debug toggle
+--[[ Commented out by request
 RegisterCommand('drugsdebug', function()
     drugsDebug = not drugsDebug
     if drugsDebug then
@@ -821,8 +845,37 @@ RegisterCommand('drugsdebug', function()
         print("^1[DEBUG] Drug selling debug mode disabled")
     end
 end, false)
+--]]
+
+-- Debug command to check drug inventory (helpful for troubleshooting)
+RegisterCommand('checkdrugs', function()
+    local success, items = SafeExecute(function()
+        return exports.ox_inventory:Items()
+    end)
+    
+    if success and items then
+        print("^2=== Drug Inventory Check ===^7")
+        local foundDrugs = false
+        for drugName, drugConfig in pairs(Config.Drugs) do
+            local item = items[drugName]
+            if item and item.count > 0 then
+                print("^2✓^7 " .. drugName .. ": " .. item.count)
+                foundDrugs = true
+            else
+                print("^1✗^7 " .. drugName .. ": 0")
+            end
+        end
+        print("^3hasDrugs status:^7 " .. tostring(hasDrugs))
+        if not foundDrugs then
+            QBCore.Functions.Notify("You don't have any drugs to sell!", "error")
+        end
+    else
+        print("^1[ERROR] Failed to check inventory^7")
+    end
+end, false)
 
 -- Statistics command (for all players - shows their own stats)
+--[[ Commented out by request
 RegisterCommand('drugstats', function()
     if not Config.Statistics.trackPlayerStats then
         QBCore.Functions.Notify("Statistics tracking is disabled", "error")
@@ -831,6 +884,7 @@ RegisterCommand('drugstats', function()
     
     OpenPlayerStatsMenu()
 end, false)
+--]]
 
 -- Player statistics menu (for all players)
 function OpenPlayerStatsMenu()
