@@ -613,6 +613,7 @@ CreateThread(function()
                             end
                         end
                     end
+                end
                 ::continue::
             end
         end
