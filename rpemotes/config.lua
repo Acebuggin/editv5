@@ -84,11 +84,11 @@ Config = {
     PreviewPed = true,
 
     -- Prop Persistence Options
-    KeepPropsWhenAiming = false, -- If true, props will not be removed when aiming a weapon
-    KeepPropsWhenHandsUp = false, -- If true, props will not be removed when putting hands up
+    KeepPropsWhenAiming = true, -- If true, props will not be removed when aiming a weapon
+    KeepPropsWhenHandsUp = true, -- If true, props will not be removed when putting hands up
     
     -- Debug Options
-    EnableDebugPrints = false, -- Enable/disable debug prints for troubleshooting
+    EnableDebugPrints = true, -- Enable/disable debug prints for troubleshooting
 
     CheckForUpdates = true,
     DebugDisplay = false,
