@@ -21,6 +21,7 @@ local EmoteCancelPlaying = false
 local currentEmote = {}
 local attachedProp
 local StoredPropsInfo = {} -- Store prop info for recreation
+local LastValidPropInfo = {} -- Backup storage that persists
 local scenarioObjects = {
     `p_amb_coffeecup_01`,
     `p_amb_joint_01`,
@@ -75,6 +76,7 @@ end)
 -- Prop monitoring thread for preservation
 CreateThread(function()
     Wait(2000) -- Wait for script initialization
+    DebugPrint("Prop monitoring thread started")
     local lastPropCount = 0
     local checkInterval = 100
     
@@ -86,11 +88,18 @@ CreateThread(function()
             local ped = PlayerPedId()
             local isAiming = IsPlayerAiming(PlayerId())
             
+            -- Debug every second
+            if GetGameTimer() % 1000 < checkInterval then
+                if isAiming or InHandsup then
+                    DebugPrint("Monitor: Aiming=" .. tostring(isAiming) .. ", Handsup=" .. tostring(InHandsup) .. ", Props=" .. currentPropCount)
+                end
+            end
+            
             -- Check if props disappeared while we should keep them
             if lastPropCount > 0 and currentPropCount == 0 then
                 if (Config.KeepPropsWhenAiming and isAiming) or 
                    (Config.KeepPropsWhenHandsUp and InHandsup) then
-                    DebugPrint("Props disappeared, recreating them")
+                    DebugPrint("Monitor: Props disappeared (had " .. lastPropCount .. "), attempting to recreate")
                     RecreateStoredProps()
                 end
             end
@@ -100,6 +109,15 @@ CreateThread(function()
                 if StoredPropsInfo.AnimOptions == nil then
                     StorePropsInfo()
                 end
+            end
+            
+            -- Always update last valid prop info when we have props
+            if currentPropCount > 0 and CurrentAnimOptions and CurrentAnimOptions.Prop then
+                LastValidPropInfo = {
+                    AnimOptions = CurrentAnimOptions,
+                    TextureVariation = CurrentTextureVariation,
+                    AnimationName = CurrentAnimationName
+                }
             end
             
             lastPropCount = currentPropCount
@@ -375,6 +393,7 @@ local function addProp(data)
         PreviewPedProps[#PreviewPedProps+1] = attachedProp
     else
         PlayerProps[#PlayerProps+1] = attachedProp
+        DebugPrint("Added prop " .. data.prop1 .. " to PlayerProps, total props: " .. #PlayerProps)
     end
 
     SetModelAsNoLongerNeeded(data.prop1)
@@ -585,32 +604,56 @@ end
 -- Store current prop information for later recreation
 function StorePropsInfo()
     StoredPropsInfo = {}
+    DebugPrint("StorePropsInfo called - CurrentAnimOptions exists: " .. tostring(CurrentAnimOptions ~= nil))
     if CurrentAnimOptions and CurrentAnimOptions.Prop then
         StoredPropsInfo = {
             AnimOptions = CurrentAnimOptions,
             TextureVariation = CurrentTextureVariation,
             AnimationName = CurrentAnimationName
         }
-        DebugPrint("Stored prop info for: " .. CurrentAnimOptions.Prop)
+        -- Also store as last valid prop info
+        LastValidPropInfo = {
+            AnimOptions = CurrentAnimOptions,
+            TextureVariation = CurrentTextureVariation,
+            AnimationName = CurrentAnimationName
+        }
+        DebugPrint("Stored prop info for: " .. CurrentAnimOptions.Prop .. " (PlayerProps count: " .. #PlayerProps .. ")")
+        return true
+    else
+        DebugPrint("No prop info to store")
+        return false
     end
 end
 
 -- Recreate props from stored information
 function RecreateStoredProps()
+    DebugPrint("RecreateStoredProps called - StoredPropsInfo exists: " .. tostring(StoredPropsInfo ~= nil))
+    
+    -- Try stored props first, then fall back to last valid
+    local propsToRecreate = nil
     if StoredPropsInfo and StoredPropsInfo.AnimOptions and StoredPropsInfo.AnimOptions.Prop then
-        DebugPrint("Recreating props from stored info")
+        propsToRecreate = StoredPropsInfo
+    elseif LastValidPropInfo and LastValidPropInfo.AnimOptions and LastValidPropInfo.AnimOptions.Prop then
+        DebugPrint("Using LastValidPropInfo as fallback")
+        propsToRecreate = LastValidPropInfo
+    end
+    
+    if propsToRecreate then
+        DebugPrint("Recreating props from stored info - Prop: " .. propsToRecreate.AnimOptions.Prop)
+        DebugPrint("Current PlayerProps count before recreation: " .. #PlayerProps)
+        
         -- Temporarily restore the animation options
         local oldAnimOptions = CurrentAnimOptions
         local oldTextureVariation = CurrentTextureVariation
         local oldAnimationName = CurrentAnimationName
         
-        CurrentAnimOptions = StoredPropsInfo.AnimOptions
-        CurrentTextureVariation = StoredPropsInfo.TextureVariation
-        CurrentAnimationName = StoredPropsInfo.AnimationName
+        CurrentAnimOptions = propsToRecreate.AnimOptions
+        CurrentTextureVariation = propsToRecreate.TextureVariation
+        CurrentAnimationName = propsToRecreate.AnimationName
         
         -- Recreate the props
-        if StoredPropsInfo.AnimOptions.Prop then
-            addProps(StoredPropsInfo.AnimOptions, StoredPropsInfo.TextureVariation, false)
+        if propsToRecreate.AnimOptions.Prop then
+            addProps(propsToRecreate.AnimOptions, propsToRecreate.TextureVariation, false)
         end
         
         -- Restore original values
@@ -618,7 +661,9 @@ function RecreateStoredProps()
         CurrentTextureVariation = oldTextureVariation
         CurrentAnimationName = oldAnimationName
         
-        DebugPrint("Props recreated successfully")
+        DebugPrint("Props recreated - New PlayerProps count: " .. #PlayerProps)
+    else
+        DebugPrint("No stored prop info to recreate")
     end
 end
 
