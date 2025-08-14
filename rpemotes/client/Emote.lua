@@ -80,7 +80,8 @@ CreateThread(function()
     Wait(2000) -- Wait for script initialization
     DebugPrint("Prop monitoring thread started")
     local lastPropCount = 0
-    local checkInterval = 100
+    local checkInterval = 50  -- Check every 50ms
+    local handsUpPropRecreated = false
     
     while true do
         Wait(checkInterval)
@@ -89,6 +90,19 @@ CreateThread(function()
             local currentPropCount = #PlayerProps
             local ped = PlayerPedId()
             local isAiming = IsPlayerAiming(PlayerId())
+            
+            -- More aggressive prop recreation during hands up
+            if Config.KeepPropsWhenHandsUp and InHandsup then
+                if currentPropCount == 0 and LastValidPropInfo.AnimOptions and not handsUpPropRecreated then
+                    DebugPrint("Monitor: Props missing during hands up, recreating immediately")
+                    RecreateStoredProps()
+                    handsUpPropRecreated = true
+                    Wait(100) -- Give it time to recreate
+                    currentPropCount = #PlayerProps
+                end
+            else
+                handsUpPropRecreated = false
+            end
             
             -- Debug every second
             if GetGameTimer() % 1000 < checkInterval then
@@ -610,9 +624,9 @@ end
 
 ---@param isClone? boolean
 function DestroyAllProps(isClone)
-    -- Skip destruction if we're preserving props during hands up
-    if not isClone and PreservingHandsUpProps and Config.KeepPropsWhenHandsUp then
-        DebugPrint("Skipping prop destruction - PreservingHandsUpProps is active")
+    -- Skip destruction if we're in hands up mode and config says to keep props
+    if not isClone and Config.KeepPropsWhenHandsUp and (InHandsup or PreservingHandsUpProps) then
+        DebugPrint("Skipping prop destruction - InHandsup=" .. tostring(InHandsup) .. ", PreservingHandsUpProps=" .. tostring(PreservingHandsUpProps))
         return
     end
     
@@ -623,6 +637,7 @@ function DestroyAllProps(isClone)
         PreviewPedProps = {}
     else
         DebugPrint("DestroyAllProps called - destroying " .. #PlayerProps .. " props")
+        DebugPrint("Call stack: " .. debug.traceback())
         for _, v in pairs(PlayerProps) do
             DeleteEntity(v)
         end
@@ -858,6 +873,17 @@ function OnEmotePlay(name, textureVariation)
                               oldAnimOptions.Prop == animOption.Prop and
                               oldAnimationName == name and
                               #PlayerProps > 0
+        
+        DebugPrint("OnEmotePlay prop check:")
+        DebugPrint("  Config.KeepPropsWhenHandsUp = " .. tostring(Config.KeepPropsWhenHandsUp))
+        DebugPrint("  PreservingHandsUpProps = " .. tostring(PreservingHandsUpProps))
+        DebugPrint("  oldAnimOptions exists = " .. tostring(oldAnimOptions ~= nil))
+        DebugPrint("  oldAnimOptions.Prop = " .. tostring(oldAnimOptions and oldAnimOptions.Prop))
+        DebugPrint("  animOption.Prop = " .. tostring(animOption.Prop))
+        DebugPrint("  oldAnimationName = " .. tostring(oldAnimationName))
+        DebugPrint("  name = " .. tostring(name))
+        DebugPrint("  PlayerProps count = " .. #PlayerProps)
+        DebugPrint("  shouldKeepProps = " .. tostring(shouldKeepProps))
         
         if shouldKeepProps then
             DebugPrint("Keeping existing props when replaying emote '" .. name .. "' after hands up")
