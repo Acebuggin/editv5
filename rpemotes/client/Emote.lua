@@ -91,10 +91,34 @@ CreateThread(function()
             local isAiming = IsPlayerAiming(PlayerId())
             
             -- More aggressive recreation during hands up
-            if Config.KeepPropsWhenHandsUp and InHandsup and currentPropCount == 0 and handsUpRecreateAttempts < 5 then
-                if LastValidPropInfo.AnimOptions or StoredPropsInfo.AnimOptions then
+            if Config.KeepPropsWhenHandsUp and InHandsup and handsUpRecreateAttempts < 5 then
+                local needsRecreation = false
+                
+                -- Check if props exist but might be detached
+                if currentPropCount > 0 then
+                    -- Check if first prop is still attached to player
+                    local firstProp = PlayerProps[1]
+                    if firstProp and DoesEntityExist(firstProp) then
+                        local attachedTo = GetEntityAttachedTo(firstProp)
+                        if attachedTo ~= PlayerPedId() then
+                            DebugPrint("Monitor: Prop exists but is detached from player!")
+                            needsRecreation = true
+                        end
+                    end
+                elseif LastValidPropInfo.AnimOptions or StoredPropsInfo.AnimOptions then
+                    needsRecreation = true
+                end
+                
+                if needsRecreation then
                     handsUpRecreateAttempts = handsUpRecreateAttempts + 1
                     DebugPrint("Monitor: Aggressive hands up prop recreation attempt " .. handsUpRecreateAttempts)
+                    
+                    -- Clear detached props first
+                    if currentPropCount > 0 then
+                        DestroyAllProps()
+                        Wait(50)
+                    end
+                    
                     RecreateStoredProps()
                     Wait(50)
                 end

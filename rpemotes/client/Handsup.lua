@@ -78,19 +78,24 @@ if Config.HandsupEnabled then
             -- Recreate props after animation starts with multiple attempts
             if needToRecreateProp and RecreateStoredProps then
                 CreateThread(function()
-                    -- Try multiple times to ensure props are recreated
+                    -- Force recreation even if props exist, as they might be detached
                     for i = 1, 3 do
                         Wait(50 * i) -- Wait 50ms, 100ms, 150ms
-                        if #PlayerProps == 0 then
-                            DebugPrint("Attempt " .. i .. ": Props were destroyed by hands up animation, recreating")
-                            RecreateStoredProps()
+                        DebugPrint("Attempt " .. i .. ": Force recreating props (current count: " .. #PlayerProps .. ")")
+                        
+                        -- Destroy existing props first as they might be detached
+                        if #PlayerProps > 0 then
+                            DebugPrint("Clearing existing detached props")
+                            DestroyAllProps()
                             Wait(50)
-                            if #PlayerProps > 0 then
-                                DebugPrint("Props successfully recreated on attempt " .. i)
-                                break
-                            end
-                        else
-                            DebugPrint("Props still exist, no need to recreate")
+                        end
+                        
+                        -- Now recreate them
+                        RecreateStoredProps()
+                        Wait(50)
+                        
+                        if #PlayerProps > 0 then
+                            DebugPrint("Props recreated on attempt " .. i .. " (new count: " .. #PlayerProps .. ")")
                             break
                         end
                     end
