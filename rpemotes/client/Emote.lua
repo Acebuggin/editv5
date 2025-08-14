@@ -23,6 +23,7 @@ local attachedProp
 local StoredPropsInfo = {} -- Store prop info for recreation
 local LastValidPropInfo = {} -- Backup storage that persists
 local WasInHandsup = false -- Track hands up state changes
+PreservingHandsUpProps = false -- Flag to indicate we should preserve props during hands up (global for Handsup.lua)
 local scenarioObjects = {
     `p_amb_coffeecup_01`,
     `p_amb_joint_01`,
@@ -609,12 +610,19 @@ end
 
 ---@param isClone? boolean
 function DestroyAllProps(isClone)
+    -- Skip destruction if we're preserving props during hands up
+    if not isClone and PreservingHandsUpProps and Config.KeepPropsWhenHandsUp then
+        DebugPrint("Skipping prop destruction - PreservingHandsUpProps is active")
+        return
+    end
+    
     if isClone then
         for _, v in pairs(PreviewPedProps) do
             DeleteEntity(v)
         end
         PreviewPedProps = {}
     else
+        DebugPrint("DestroyAllProps called - destroying " .. #PlayerProps .. " props")
         for _, v in pairs(PlayerProps) do
             DeleteEntity(v)
         end

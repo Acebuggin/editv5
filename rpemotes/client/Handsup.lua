@@ -50,6 +50,12 @@ if Config.HandsupEnabled then
         if InHandsup then
             LocalPlayer.state:set('currentEmote', 'handsup', true)
             
+            -- Set flag to preserve props if config is enabled
+            if Config.KeepPropsWhenHandsUp and PreservingHandsUpProps ~= nil then
+                PreservingHandsUpProps = true
+                DebugPrint("Hands up - setting PreservingHandsUpProps = true")
+            end
+            
             -- Store props info if we need to keep them
             local needToRecreateProp = false
             if Config.KeepPropsWhenHandsUp and StorePropsInfo then
@@ -89,6 +95,10 @@ if Config.HandsupEnabled then
             if Config.ReplayEmoteAfterHandsup and IsInAnimation then
                 local emote = EmoteData[CurrentAnimationName]
                 if not emote then
+                    -- Clear the flag if no emote to replay
+                    if PreservingHandsUpProps ~= nil then
+                        PreservingHandsUpProps = false
+                    end
                     return
                 end
 
@@ -99,6 +109,20 @@ if Config.HandsupEnabled then
                     DebugPrint("Hands down - keeping props due to KeepPropsWhenHandsUp config")
                 end
                 OnEmotePlay(CurrentAnimationName, CurrentTextureVariation)
+                
+                -- Clear the flag after replaying emote
+                if PreservingHandsUpProps ~= nil then
+                    CreateThread(function()
+                        Wait(500)
+                        PreservingHandsUpProps = false
+                        DebugPrint("Hands down - clearing PreservingHandsUpProps flag")
+                    end)
+                end
+            else
+                -- Clear the flag if not replaying emote
+                if PreservingHandsUpProps ~= nil then
+                    PreservingHandsUpProps = false
+                end
             end
         end
     end
