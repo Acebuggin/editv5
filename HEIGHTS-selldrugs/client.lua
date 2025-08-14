@@ -604,6 +604,12 @@ CreateThread(function()
                                     DrawText3D(pedCoords.x, pedCoords.y, pedCoords.z + 0.3, 'Sell Drugs')
                                     if dist < Config.SellDistance then
                                         sellingPed = ped
+                                        -- Check for E key press directly since command is disabled
+                                        if IsControlJustPressed(0, 38) then -- E key
+                                            if sellingPed and not sellingInProgress then
+                                                SafeTryToSellToPed(sellingPed)
+                                            end
+                                        end
                                     end
                                 else
                                     -- Show zone notification when in restricted area
@@ -825,7 +831,7 @@ RegisterCommand('trySell', function()
 end, false)
 --]]
 
-RegisterKeyMapping('trySell', 'Sell Drugs to Ped', 'keyboard', 'E')
+-- RegisterKeyMapping('trySell', 'Sell Drugs to Ped', 'keyboard', 'E') -- Commented out with command
 
 -- Debug toggle
 --[[ Commented out by request
