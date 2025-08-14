@@ -12,7 +12,7 @@ local ChosenScenarioType
 CurrentAnimOptions = nil  -- Made global for access from other files
 local PlayerGender = "male"
 PlayerProps = {}  -- Made global for access from other files
-local PreviewPedProps = {}
+-- PreviewPedProps is now defined in Utils.lua
 local PtfxNotif = false
 local PtfxPrompt = false
 local AnimationThreadStatus = false
@@ -583,23 +583,6 @@ function EmoteCommandStart(args)
     end
 
     OnEmotePlay(name)
-end
-
----@param isClone? boolean
-function DestroyAllProps(isClone)
-    if isClone then
-        for _, v in pairs(PreviewPedProps) do
-            DeleteEntity(v)
-        end
-        PreviewPedProps = {}
-    else
-        DebugPrint("DestroyAllProps called - destroying " .. #PlayerProps .. " props")
-        for _, v in pairs(PlayerProps) do
-            DeleteEntity(v)
-        end
-        PlayerProps = {}
-    end
-    DebugPrint("Destroyed Props for " .. (isClone and "clone" or "player"))
 end
 
 function RecreateProps()

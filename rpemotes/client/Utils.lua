@@ -1,3 +1,7 @@
+-- Global variables for prop management
+PlayerProps = PlayerProps or {}
+PreviewPedProps = PreviewPedProps or {}
+
 -- You can edit this function to add support for your favorite notification system
 function SimpleNotify(message)
     if Config.NotificationsAsChatMessage then
@@ -27,6 +31,22 @@ end
 
 function FirstToUpper(str)
     return (str:gsub("^%l", string.upper))
+end
+
+function DestroyAllProps(isClone)
+    if isClone then
+        for _, v in pairs(PreviewPedProps) do
+            DeleteEntity(v)
+        end
+        PreviewPedProps = {}
+    else
+        DebugPrint("DestroyAllProps called - destroying " .. #PlayerProps .. " props")
+        for _, v in pairs(PlayerProps) do
+            DeleteEntity(v)
+        end
+        PlayerProps = {}
+    end
+    DebugPrint("Destroyed Props for " .. (isClone and "clone" or "player"))
 end
 
 function IsPlayerAiming(player)
@@ -390,7 +410,10 @@ function ClearPedTaskPreview()
     if not Config.PreviewPed then return end
 
     if ClonedPed then
-        DestroyAllProps(true)
+        if DestroyAllProps then
+            DestroyAllProps(true)
+        end
         ClearPedTasksImmediately(ClonedPed)
     end
+    ShowPed = false
 end
