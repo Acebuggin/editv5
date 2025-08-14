@@ -20,6 +20,7 @@ local ExitAndPlay = false
 local EmoteCancelPlaying = false
 local currentEmote = {}
 local attachedProp
+local StoredPropsInfo = {} -- Store prop info for recreation
 local scenarioObjects = {
     `p_amb_coffeecup_01`,
     `p_amb_joint_01`,
@@ -71,6 +72,41 @@ CreateThread(function()
     LocalPlayer.state:set('canCancel', true, true)
 end)
 
+-- Prop monitoring thread for preservation
+CreateThread(function()
+    Wait(2000) -- Wait for script initialization
+    local lastPropCount = 0
+    local checkInterval = 100
+    
+    while true do
+        Wait(checkInterval)
+        
+        if Config.KeepPropsWhenAiming or Config.KeepPropsWhenHandsUp then
+            local currentPropCount = #PlayerProps
+            local ped = PlayerPedId()
+            local isAiming = IsPlayerAiming(PlayerId())
+            
+            -- Check if props disappeared while we should keep them
+            if lastPropCount > 0 and currentPropCount == 0 then
+                if (Config.KeepPropsWhenAiming and isAiming) or 
+                   (Config.KeepPropsWhenHandsUp and InHandsup) then
+                    DebugPrint("Props disappeared, recreating them")
+                    RecreateStoredProps()
+                end
+            end
+            
+            -- Store props info when we have props and might need them
+            if currentPropCount > 0 and (isAiming or InHandsup) then
+                if StoredPropsInfo.AnimOptions == nil then
+                    StorePropsInfo()
+                end
+            end
+            
+            lastPropCount = currentPropCount
+        end
+    end
+end)
+
 local function runAnimationThread()
     local pPed = PlayerPedId()
     if AnimationThreadStatus then return end
@@ -85,10 +121,17 @@ local function runAnimationThread()
                 if IsPlayerAiming(pPed) then
                     -- Check if we should keep props when aiming
                     if Config.KeepPropsWhenAiming and #PlayerProps > 0 then
-                        DebugPrint("Player aiming with KeepPropsWhenAiming enabled - skipping EmoteCancel")
-                        -- Just clear the animation but keep props
+                        DebugPrint("Player aiming with KeepPropsWhenAiming enabled - storing and recreating props")
+                        -- Store prop info before clearing tasks
+                        StorePropsInfo()
+                        -- Clear the animation
                         ClearPedTasks(pPed)
                         IsInAnimation = false
+                        -- Recreate props after a short delay
+                        CreateThread(function()
+                            Wait(100)
+                            RecreateStoredProps()
+                        end)
                     else
                         EmoteCancel()
                     end
@@ -537,6 +580,46 @@ function DestroyAllProps(isClone)
         PlayerProps = {}
     end
     DebugPrint("Destroyed Props for " .. (isClone and "clone" or "player"))
+end
+
+-- Store current prop information for later recreation
+function StorePropsInfo()
+    StoredPropsInfo = {}
+    if CurrentAnimOptions and CurrentAnimOptions.Prop then
+        StoredPropsInfo = {
+            AnimOptions = CurrentAnimOptions,
+            TextureVariation = CurrentTextureVariation,
+            AnimationName = CurrentAnimationName
+        }
+        DebugPrint("Stored prop info for: " .. CurrentAnimOptions.Prop)
+    end
+end
+
+-- Recreate props from stored information
+function RecreateStoredProps()
+    if StoredPropsInfo and StoredPropsInfo.AnimOptions and StoredPropsInfo.AnimOptions.Prop then
+        DebugPrint("Recreating props from stored info")
+        -- Temporarily restore the animation options
+        local oldAnimOptions = CurrentAnimOptions
+        local oldTextureVariation = CurrentTextureVariation
+        local oldAnimationName = CurrentAnimationName
+        
+        CurrentAnimOptions = StoredPropsInfo.AnimOptions
+        CurrentTextureVariation = StoredPropsInfo.TextureVariation
+        CurrentAnimationName = StoredPropsInfo.AnimationName
+        
+        -- Recreate the props
+        if StoredPropsInfo.AnimOptions.Prop then
+            addProps(StoredPropsInfo.AnimOptions, StoredPropsInfo.TextureVariation, false)
+        end
+        
+        -- Restore original values
+        CurrentAnimOptions = oldAnimOptions
+        CurrentTextureVariation = oldTextureVariation
+        CurrentAnimationName = oldAnimationName
+        
+        DebugPrint("Props recreated successfully")
+    end
 end
 
 local function playExitAndEnterEmote(name, textureVariation)

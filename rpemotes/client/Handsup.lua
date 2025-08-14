@@ -49,11 +49,21 @@ if Config.HandsupEnabled then
         InHandsup = not InHandsup
         if InHandsup then
             LocalPlayer.state:set('currentEmote', 'handsup', true)
+            
+            -- Store props info if we need to keep them
+            local needToRecreateProp = false
+            if Config.KeepPropsWhenHandsUp and StorePropsInfo then
+                StorePropsInfo()
+                needToRecreateProp = true
+                DebugPrint("Storing props info before hands up")
+            end
+            
             if not Config.KeepPropsWhenHandsUp then
                 DestroyAllProps()
             else
                 DebugPrint("Hands up - keeping props due to KeepPropsWhenHandsUp config")
             end
+            
             local dict = "random@mugging3"
             RequestAnimDict(dict)
             while not HasAnimDictLoaded(dict) do
@@ -62,6 +72,14 @@ if Config.HandsupEnabled then
             TaskPlayAnim(PlayerPedId(), dict, "handsup_standing_base", 3.0, 3.0, -1, 49, 0, false,
                 IsThisModelABike(GetEntityModel(GetVehiclePedIsIn(PlayerPedId(), false))) and 4127 or false, false)
             HandsUpLoop()
+            
+            -- Recreate props after animation starts
+            if needToRecreateProp and RecreateStoredProps then
+                CreateThread(function()
+                    Wait(200)
+                    RecreateStoredProps()
+                end)
+            end
         else
             LocalPlayer.state:set('currentEmote', nil, true)
             ClearPedSecondaryTask(PlayerPedId())
