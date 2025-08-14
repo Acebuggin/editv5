@@ -817,15 +817,18 @@ end
 -- ========================================
 
 -- Manual sell command
+--[[ Commented out by request
 RegisterCommand('trySell', function()
     if sellingPed and not sellingInProgress then
         SafeTryToSellToPed(sellingPed)
     end
 end, false)
+--]]
 
 RegisterKeyMapping('trySell', 'Sell Drugs to Ped', 'keyboard', 'E')
 
 -- Debug toggle
+--[[ Commented out by request
 RegisterCommand('drugsdebug', function()
     drugsDebug = not drugsDebug
     if drugsDebug then
@@ -836,8 +839,10 @@ RegisterCommand('drugsdebug', function()
         print("^1[DEBUG] Drug selling debug mode disabled")
     end
 end, false)
+--]]
 
 -- Statistics command (for all players - shows their own stats)
+--[[ Commented out by request
 RegisterCommand('drugstats', function()
     if not Config.Statistics.trackPlayerStats then
         QBCore.Functions.Notify("Statistics tracking is disabled", "error")
@@ -846,6 +851,7 @@ RegisterCommand('drugstats', function()
     
     OpenPlayerStatsMenu()
 end, false)
+--]]
 
 -- Player statistics menu (for all players)
 function OpenPlayerStatsMenu()
