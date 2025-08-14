@@ -94,33 +94,41 @@ CreateThread(function()
             if Config.KeepPropsWhenHandsUp and InHandsup and handsUpRecreateAttempts < 5 then
                 local needsRecreation = false
                 
-                -- Check if props exist but might be detached
-                if currentPropCount > 0 then
-                    -- Check if first prop is still attached to player
-                    local firstProp = PlayerProps[1]
-                    if firstProp and DoesEntityExist(firstProp) then
-                        local attachedTo = GetEntityAttachedTo(firstProp)
-                        if attachedTo ~= PlayerPedId() then
-                            DebugPrint("Monitor: Prop exists but is detached from player!")
-                            needsRecreation = true
-                        end
-                    end
-                elseif LastValidPropInfo.AnimOptions or StoredPropsInfo.AnimOptions then
-                    needsRecreation = true
-                end
+                -- Only recreate if we have valid stored prop data
+                local hasValidPropData = (LastValidPropInfo.AnimOptions ~= nil or StoredPropsInfo.AnimOptions ~= nil)
                 
-                if needsRecreation then
-                    handsUpRecreateAttempts = handsUpRecreateAttempts + 1
-                    DebugPrint("Monitor: Aggressive hands up prop recreation attempt " .. handsUpRecreateAttempts)
-                    
-                    -- Clear detached props first
+                if not hasValidPropData then
+                    DebugPrint("Monitor: No valid prop data stored, skipping recreation")
+                    handsUpRecreateAttempts = 5 -- Stop trying
+                else
+                    -- Check if props exist but might be detached
                     if currentPropCount > 0 then
-                        DestroyAllProps()
+                        -- Check if first prop is still attached to player
+                        local firstProp = PlayerProps[1]
+                        if firstProp and DoesEntityExist(firstProp) then
+                            local attachedTo = GetEntityAttachedTo(firstProp)
+                            if attachedTo ~= PlayerPedId() then
+                                DebugPrint("Monitor: Prop exists but is detached from player!")
+                                needsRecreation = true
+                            end
+                        end
+                    elseif LastValidPropInfo.AnimOptions or StoredPropsInfo.AnimOptions then
+                        needsRecreation = true
+                    end
+                    
+                    if needsRecreation then
+                        handsUpRecreateAttempts = handsUpRecreateAttempts + 1
+                        DebugPrint("Monitor: Aggressive hands up prop recreation attempt " .. handsUpRecreateAttempts)
+                        
+                        -- Clear detached props first
+                        if currentPropCount > 0 then
+                            DestroyAllProps()
+                            Wait(50)
+                        end
+                        
+                        RecreateStoredProps()
                         Wait(50)
                     end
-                    
-                    RecreateStoredProps()
-                    Wait(50)
                 end
             elseif not InHandsup then
                 handsUpRecreateAttempts = 0
@@ -164,7 +172,7 @@ CreateThread(function()
             end
             
             -- Always update last valid prop info when we have props
-            if currentPropCount > 0 and CurrentAnimOptions and CurrentAnimOptions.Prop then
+            if currentPropCount > 0 and CurrentAnimOptions and CurrentAnimOptions.Prop and IsInAnimation then
                 LastValidPropInfo = {
                     AnimOptions = CurrentAnimOptions,
                     TextureVariation = CurrentTextureVariation,
@@ -348,6 +356,14 @@ function EmoteCancel(force)
     cleanScenarioObjects(false)
     AnimationThreadStatus = false
     CheckStatus = false
+    
+    -- Clear all stored prop data when canceling emote
+    StoredPropsInfo = {}
+    LastValidPropInfo = {}
+    CurrentAnimOptions = nil
+    CurrentTextureVariation = nil
+    CurrentAnimationName = nil
+    DebugPrint("Cleared all stored prop data after emote cancel")
 end
 
 local function checkAnimalAndOnEmotePlay(name)
