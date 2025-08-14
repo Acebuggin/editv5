@@ -1,3 +1,6 @@
+-- Ensure PlayerProps exists (it's defined in Emote.lua but we need it here)
+PlayerProps = PlayerProps or {}
+
 local function HandsUpLoop()
     CreateThread(function()
         while InHandsup do
@@ -50,7 +53,7 @@ if Config.HandsupEnabled then
         if InHandsup then
             -- Store props info FIRST before anything else
             local needToRecreateProp = false
-            if Config.KeepPropsWhenHandsUp and #PlayerProps > 0 then
+            if Config.KeepPropsWhenHandsUp and PlayerProps and #PlayerProps > 0 then
                 if StorePropsInfo then
                     StorePropsInfo()
                     needToRecreateProp = true
@@ -81,10 +84,10 @@ if Config.HandsupEnabled then
                     -- Force recreation even if props exist, as they might be detached
                     for i = 1, 3 do
                         Wait(50 * i) -- Wait 50ms, 100ms, 150ms
-                        DebugPrint("Attempt " .. i .. ": Force recreating props (current count: " .. #PlayerProps .. ")")
+                        DebugPrint("Attempt " .. i .. ": Force recreating props (current count: " .. (PlayerProps and #PlayerProps or 0) .. ")")
                         
                         -- Destroy existing props first as they might be detached
-                        if #PlayerProps > 0 then
+                        if PlayerProps and #PlayerProps > 0 then
                             DebugPrint("Clearing existing detached props")
                             DestroyAllProps()
                             Wait(50)
@@ -94,7 +97,7 @@ if Config.HandsupEnabled then
                         RecreateStoredProps()
                         Wait(50)
                         
-                        if #PlayerProps > 0 then
+                        if PlayerProps and #PlayerProps > 0 then
                             DebugPrint("Props recreated on attempt " .. i .. " (new count: " .. #PlayerProps .. ")")
                             break
                         end
@@ -113,7 +116,7 @@ if Config.HandsupEnabled then
                 end
 
                 DebugPrint("Will replay emote: " .. CurrentAnimationName)
-                DebugPrint("Current prop count before replay: " .. #PlayerProps)
+                DebugPrint("Current prop count before replay: " .. (PlayerProps and #PlayerProps or 0))
                 
                 Wait(400)
                 if not Config.KeepPropsWhenHandsUp then
