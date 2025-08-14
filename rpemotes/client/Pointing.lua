@@ -33,7 +33,11 @@ local function PointingStopped()
         end
 
         Wait(400)
-        DestroyAllProps()
+        if not Config.KeepPropsWhenPointing then
+            DestroyAllProps()
+        else
+            DebugPrint("Keeping props while pointing due to KeepPropsWhenPointing config")
+        end
         OnEmotePlay(CurrentAnimationName, CurrentTextureVariation)
     end
 end
@@ -97,7 +101,11 @@ local function StartPointing()
     if Pointing and LoadAnim("anim@mp_point") then
         SetPedConfigFlag(PlayerPedId(), 36, true)
         TaskMoveNetworkByName(PlayerPedId(), 'task_mp_pointing', 0.5, false, 'anim@mp_point', 24)
-        DestroyAllProps()
+        if not Config.KeepPropsWhenPointing then
+            DestroyAllProps()
+        else
+            DebugPrint("Keeping props while starting pointing due to KeepPropsWhenPointing config")
+        end
         PointingThread()
     end
 end
