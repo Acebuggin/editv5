@@ -71,7 +71,27 @@ Config.MenuItems = {
                 icon = 'mask',
                 type = 'client',
                 event = 'police:client:RobPlayer',
-                shouldClose = true
+                shouldClose = true,
+                canOpen = function(itemData)
+                    local player, distance = QBCore.Functions.GetClosestPlayer()
+                    if player ~= -1 and distance < 2.5 then
+                        local playerId = GetPlayerServerId(player)
+                        local playerPed = GetPlayerPed(player)
+                        
+                        -- Check if the target player has hands up
+                        -- First try direct state check
+                        local targetHandsUp = Player(playerId).state.handsup
+                        
+                        -- If state is nil, try to check animation
+                        if targetHandsUp == nil then
+                            -- Check if player is doing hands up animation
+                            targetHandsUp = IsEntityPlayingAnim(playerPed, "random@mugging3", "handsup_standing_base", 3)
+                        end
+                        
+                        return targetHandsUp == true
+                    end
+                    return false
+                end
             }, {
                 id = 'escort',
                 title = 'Kidnap',
