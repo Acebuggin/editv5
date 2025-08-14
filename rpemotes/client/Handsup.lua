@@ -44,6 +44,10 @@ if Config.HandsupEnabled then
     end
 
     function Handsup()
+        -- State flag to track hands up during animation/emote transitions
+        PreservingHandsUpProps = nil
+        WasInHandsup = InHandsup
+        
         local playerPed = PlayerPedId()
         if not IsPedHuman(playerPed) then
             return
@@ -54,91 +58,91 @@ if Config.HandsupEnabled then
 
         InHandsup = not InHandsup
         if InHandsup then
-            -- Store props info FIRST before anything else
-            local needToRecreateProp = false
-            if Config.KeepPropsWhenHandsUp and PlayerProps and #PlayerProps > 0 then
-                if StorePropsInfo then
-                    StorePropsInfo()
-                    needToRecreateProp = true
-                    DebugPrint("Storing props info before hands up - PlayerProps count: " .. #PlayerProps)
+                -- Store props info FIRST before anything else
+                local needToRecreateProp = false
+                if Config.KeepPropsWhenHandsUp and PlayerProps and #PlayerProps > 0 then
+                    if StorePropsInfo then
+                        StorePropsInfo()
+                        needToRecreateProp = true
+                        DebugPrint("Storing props info before hands up - PlayerProps count: " .. #PlayerProps)
+                    end
                 end
-            end
-            
-            LocalPlayer.state:set('currentEmote', 'handsup', true)
-            -- QB-Core compatibility - set handsup state
-            LocalPlayer.state:set('handsup', true, true)
-            
-            if not Config.KeepPropsWhenHandsUp then
-                DestroyAllProps()
-            else
-                DebugPrint("Hands up - keeping props due to KeepPropsWhenHandsUp config")
-            end
-            
-            local dict = "random@mugging3"
-            RequestAnimDict(dict)
-            while not HasAnimDictLoaded(dict) do
-                Wait(0)
-            end
-            TaskPlayAnim(PlayerPedId(), dict, "handsup_standing_base", 3.0, 3.0, -1, 49, 0, false,
-                IsThisModelABike(GetEntityModel(GetVehiclePedIsIn(PlayerPedId(), false))) and 4127 or false, false)
-            HandsUpLoop()
-            
-            -- Recreate props after animation starts with multiple attempts
-            if Config.KeepPropsWhenHandsUp then
-                CreateThread(function()
-                    Wait(100) -- Give animation time to start
-                    DebugPrint("Checking if props need recreation after hands up animation")
-                    
-                    -- Force recreation even if props exist, as they might be detached
-                    for i = 1, 3 do
-                        Wait(50 * i) -- Wait 50ms, 100ms, 150ms
+                
+                LocalPlayer.state:set('currentEmote', 'handsup', true)
+                -- QB-Core compatibility - set handsup state
+                LocalPlayer.state:set('handsup', true, true)
+                
+                if not Config.KeepPropsWhenHandsUp then
+                    DestroyAllProps()
+                else
+                    DebugPrint("Hands up - keeping props due to KeepPropsWhenHandsUp config")
+                end
+                
+                local dict = "random@mugging3"
+                RequestAnimDict(dict)
+                while not HasAnimDictLoaded(dict) do
+                    Wait(0)
+                end
+                TaskPlayAnim(PlayerPedId(), dict, "handsup_standing_base", 3.0, 3.0, -1, 49, 0, false,
+                    IsThisModelABike(GetEntityModel(GetVehiclePedIsIn(PlayerPedId(), false))) and 4127 or false, false)
+                HandsUpLoop()
+                
+                -- Recreate props after animation starts with multiple attempts
+                if Config.KeepPropsWhenHandsUp then
+                    CreateThread(function()
+                        Wait(100) -- Give animation time to start
+                        DebugPrint("Checking if props need recreation after hands up animation")
                         
-                        -- Check if props are attached to player
-                        local propsAttached = false
-                        if PlayerProps and #PlayerProps > 0 then
-                            local firstProp = PlayerProps[1]
-                            if firstProp and DoesEntityExist(firstProp) then
-                                local attachedTo = GetEntityAttachedTo(firstProp)
-                                propsAttached = (attachedTo == PlayerPedId())
-                                DebugPrint("Attempt " .. i .. ": Prop exists, attached to: " .. tostring(attachedTo) .. ", player: " .. tostring(PlayerPedId()))
-                            end
-                        end
-                        
-                        if not propsAttached then
-                            DebugPrint("Props not attached to player, recreating...")
+                        -- Force recreation even if props exist, as they might be detached
+                        for i = 1, 3 do
+                            Wait(50 * i) -- Wait 50ms, 100ms, 150ms
                             
-                            -- Destroy existing props first as they might be detached
+                            -- Check if props are attached to player
+                            local propsAttached = false
                             if PlayerProps and #PlayerProps > 0 then
-                                DebugPrint("Clearing existing detached props")
-                                DestroyAllProps()
-                                Wait(50)
-                            end
-                            
-                            -- Now recreate them
-                            if RecreateStoredProps then
-                                RecreateStoredProps()
-                            elseif LastValidPropInfo and LastValidPropInfo.AnimOptions then
-                                DebugPrint("Using LastValidPropInfo for recreation")
-                                -- Manually recreate using last valid info
-                                CurrentAnimOptions = LastValidPropInfo.AnimOptions
-                                CurrentTextureVariation = LastValidPropInfo.TextureVariation
-                                if addProps then
-                                    addProps(LastValidPropInfo.AnimOptions, LastValidPropInfo.TextureVariation, false)
+                                local firstProp = PlayerProps[1]
+                                if firstProp and DoesEntityExist(firstProp) then
+                                    local attachedTo = GetEntityAttachedTo(firstProp)
+                                    propsAttached = (attachedTo == PlayerPedId())
+                                    DebugPrint("Attempt " .. i .. ": Prop exists, attached to: " .. tostring(attachedTo) .. ", player: " .. tostring(PlayerPedId()))
                                 end
                             end
-                            Wait(50)
                             
-                            if PlayerProps and #PlayerProps > 0 then
-                                DebugPrint("Props recreated on attempt " .. i .. " (new count: " .. #PlayerProps .. ")")
+                            if not propsAttached then
+                                DebugPrint("Props not attached to player, recreating...")
+                                
+                                -- Destroy existing props first as they might be detached
+                                if PlayerProps and #PlayerProps > 0 then
+                                    DebugPrint("Clearing existing detached props")
+                                    DestroyAllProps()
+                                    Wait(50)
+                                end
+                                
+                                -- Now recreate them
+                                if RecreateStoredProps then
+                                    RecreateStoredProps()
+                                elseif LastValidPropInfo and LastValidPropInfo.AnimOptions then
+                                    DebugPrint("Using LastValidPropInfo for recreation")
+                                    -- Manually recreate using last valid info
+                                    CurrentAnimOptions = LastValidPropInfo.AnimOptions
+                                    CurrentTextureVariation = LastValidPropInfo.TextureVariation
+                                    if addProps then
+                                        addProps(LastValidPropInfo.AnimOptions, LastValidPropInfo.TextureVariation, false)
+                                    end
+                                end
+                                Wait(50)
+                                
+                                if PlayerProps and #PlayerProps > 0 then
+                                    DebugPrint("Props recreated on attempt " .. i .. " (new count: " .. #PlayerProps .. ")")
+                                    break
+                                end
+                            else
+                                DebugPrint("Props are properly attached, no recreation needed")
                                 break
                             end
-                        else
-                            DebugPrint("Props are properly attached, no recreation needed")
-                            break
                         end
-                    end
-                end)
-            end
+                    end)
+                end
         else
             DebugPrint("=== HANDS DOWN SEQUENCE START ===")
             LocalPlayer.state:set('currentEmote', nil, true)
