@@ -589,23 +589,30 @@ CreateThread(function()
                     end
 
                     if dist < Config.ScanDistance and not soldPeds[ped] and not IsPedInAnyVehicle(ped, false) then
-                        nearbyPedCount = nearbyPedCount + 1
-                        sleep = 0
+                        -- Check if this is an oxy delivery ped
+                        local isOxyPed = false
+                        if GetResourceState('HEIGHTS-oxyV1') == 'started' then
+                            isOxyPed = exports['HEIGHTS-oxyV1']:IsOxyDeliveryPed(ped)
+                        end
+                        
+                        if not isOxyPed then
+                            nearbyPedCount = nearbyPedCount + 1
+                            sleep = 0
 
-                        if dist < Config.DrawTextDistance then
-                            -- Only show text and allow selling if NOT in restricted zone
-                            if not inRestrictedZone then
-                                DrawText3D(pedCoords.x, pedCoords.y, pedCoords.z + 0.3, 'Sell Drugs')
-                                if dist < Config.SellDistance then
-                                    sellingPed = ped
+                            if dist < Config.DrawTextDistance then
+                                -- Only show text and allow selling if NOT in restricted zone
+                                if not inRestrictedZone then
+                                    DrawText3D(pedCoords.x, pedCoords.y, pedCoords.z + 0.3, 'Sell Drugs')
+                                    if dist < Config.SellDistance then
+                                        sellingPed = ped
+                                    end
+                                else
+                                    -- Show zone notification when in restricted area
+                                    ShowZoneNotification(currentZone)
                                 end
-                            else
-                                -- Show zone notification when in restricted area
-                                ShowZoneNotification(currentZone)
                             end
                         end
                     end
-                end
                 ::continue::
             end
         end
@@ -638,6 +645,14 @@ end
 -- Try to sell drugs to a ped
 function TryToSellToPed(ped)
     if soldPeds[ped] or sellingInProgress then return end
+    
+    -- Check if this is an oxy delivery ped
+    if GetResourceState('HEIGHTS-oxyV1') == 'started' then
+        if exports['HEIGHTS-oxyV1']:IsOxyDeliveryPed(ped) then
+            QBCore.Functions.Notify("This person is busy with another transaction.", "error")
+            return
+        end
+    end
 
     if onCooldown then
         QBCore.Functions.Notify("You need to wait before selling more.", "error")

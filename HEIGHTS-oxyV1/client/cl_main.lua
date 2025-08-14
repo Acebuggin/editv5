@@ -617,3 +617,34 @@ AddEventHandler('onResourceStop', function(resourceName)
 	end
 	exports.ox_lib:hideTextUI()
 end)
+
+-- ========================================
+-- EXPORT FUNCTIONS
+-- ========================================
+
+--- Export function to get the current oxy delivery ped
+--- @return entity|nil - Returns the oxy ped entity or nil if none exists
+exports('GetOxyDeliveryPed', function()
+	return oxyPed
+end)
+
+--- Export function to check if a specific ped is the oxy delivery ped
+--- @param ped entity - The ped entity to check
+--- @return boolean - Returns true if the ped is the oxy delivery ped
+exports('IsOxyDeliveryPed', function(ped)
+	if not ped or not DoesEntityExist(ped) then
+		return false
+	end
+	return ped == oxyPed
+end)
+
+--- Export function to get all active oxy delivery data
+--- @return table - Returns table with delivery status and ped info
+exports('GetOxyDeliveryData', function()
+	return {
+		isActive = started and hasDropOff,
+		hasPed = oxyPed ~= nil and DoesEntityExist(oxyPed),
+		ped = oxyPed,
+		madeDeal = madeDeal
+	}
+end)
