@@ -11,6 +11,7 @@ local dropOffArea = nil
 local nearPed = false
 local inReturnZone = false
 local arrivedInOxyVehicle = false -- Track if player arrived in their oxy vehicle
+local processingEKey = false -- Prevent multiple E key handlers
 
 local peds = {
 	'a_m_y_stwhi_02',
@@ -117,10 +118,13 @@ local CreateDropOffPed = function(coords)
 					})
 				end
 				
-				if IsControlJustPressed(0, 38) then -- E
+				if IsControlJustPressed(0, 38) and not processingEKey then -- E
+					processingEKey = true
 					debugPrint("E pressed for delivery. inReturnZone: " .. tostring(inReturnZone))
 					exports.ox_lib:hideTextUI()
 					TriggerEvent('HEIGHTS-oxyV1:client:DeliverOxy')
+					Wait(1000) -- Cooldown
+					processingEKey = false
 					break
 				end
 			else
@@ -535,7 +539,8 @@ CreateThread(function()
 								end
 							end
 							
-							if IsControlJustPressed(0, 38) then -- E
+							if IsControlJustPressed(0, 38) and not processingEKey then -- E
+								processingEKey = true
 								-- Triple check distance to return zone before allowing return
 								local finalPlayerCoords = GetEntityCoords(PlayerPedId())
 								local finalDistToReturn = #(finalPlayerCoords - vector3(returnCoords.x, returnCoords.y, returnCoords.z))
@@ -543,6 +548,7 @@ CreateThread(function()
 								if finalDistToReturn > 5.0 then
 									debugPrint("E pressed but too far from return zone - ignoring")
 									QBCore.Functions.Notify("You must be at the return location to return the vehicle", "error")
+									processingEKey = false
 									break
 								end
 								
@@ -551,12 +557,15 @@ CreateThread(function()
 									local finalDist = #(GetEntityCoords(PlayerPedId()) - GetEntityCoords(oxyPed))
 									if finalDist < 10.0 then
 										debugPrint("E pressed but near delivery ped - ignoring return command")
+										processingEKey = false
 										break
 									end
 								end
 								debugPrint("E pressed in return zone - ending run")
 								exports.ox_lib:hideTextUI()
 								EndOxyRun(true) -- true = with refund
+								Wait(1000) -- Cooldown
+								processingEKey = false
 								break
 							end
 						end
@@ -607,10 +616,32 @@ CreateThread(function()
 			CreateThread(function()
 				while isPointInside do
 					Wait(0)
-					if IsControlJustPressed(0, 38) then -- E
-						debugPrint("Starting/Getting new oxy vehicle from starter zone")
+					-- Double check distance to starter location
+					local playerCoords = GetEntityCoords(PlayerPedId())
+					local distanceToStarter = #(playerCoords - vector3(Config.StartLocation.x, Config.StartLocation.y, Config.StartLocation.z))
+					
+					if distanceToStarter > 3.0 then
+						-- Player moved away from starter zone
 						exports.ox_lib:hideTextUI()
-						TriggerEvent('HEIGHTS-oxyV1:client:StartOxy')
+						debugPrint("Player left starter zone - hiding UI")
+						break
+					end
+					
+					if IsControlJustPressed(0, 38) and not processingEKey then -- E
+						processingEKey = true
+						-- Triple check distance before allowing start
+						local finalCoords = GetEntityCoords(PlayerPedId())
+						local finalDist = #(finalCoords - vector3(Config.StartLocation.x, Config.StartLocation.y, Config.StartLocation.z))
+						
+						if finalDist <= 3.0 then
+							debugPrint("Starting/Getting new oxy vehicle from starter zone")
+							exports.ox_lib:hideTextUI()
+							TriggerEvent('HEIGHTS-oxyV1:client:StartOxy')
+							Wait(1000) -- Cooldown
+						else
+							debugPrint("E pressed but too far from starter zone - ignoring")
+						end
+						processingEKey = false
 						break
 					end
 				end
